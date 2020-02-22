@@ -16,6 +16,7 @@ class HandlebarsHelper {
     await Promise.all(
       paths.map(async (folder) => {
         const entries = await fs.readdir(folder, { withFileTypes: true });
+        console.log("HandlebarsHelper.precompile.entries:", entries);
         for (const entry of entries) {
           if (entry.isFile()) {
             const source = (await fs.readFile(path.join(folder, entry.name))).toString();

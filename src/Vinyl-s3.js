@@ -23,7 +23,7 @@ class VinylS3 {
           Body: file.contents,
           ACL: "public-read",
         };
-
+        console.log("VinylS3.dest:options:", s3, params);
         // Stream the provided file to the S3 bucket and key
         s3.upload(params)
           .promise()
@@ -31,14 +31,15 @@ class VinylS3 {
             done();
           })
           .catch((reason) => {
-            console.error("vinylS3.dest:", reason);
-            done();
+            console.error("VinylS3.dest:s3.upload:", reason);
+            done(reason);
           });
       },
     });
 
     writable.on("error", (reason) => {
-      console.error("vinylS3.dest:", reason);
+      console.error("VinylS3.dest:writable.on.error", reason);
+      throw reason;
     });
 
     return writable;

@@ -19,7 +19,6 @@ class Amplify {
   static async deploy(options) {
     // Construct the source Url to fetch the archive from
     const sourceUrl = `https://s3.${options.aws.bucketRegion}.amazonaws.com/${options.aws.bucket}/${options.aws.key}`;
-    //https://s3.ca-central-1.amazonaws.com/wp.tforster.com/archive.zip
 
     // Create new Amplify client
     const amplify = new AWS.Amplify({ region: options.aws.amplifyRegion });
@@ -27,6 +26,8 @@ class Amplify {
     // Set the minimal required Amplify application identifiers. Assumes the application was pre-created in the AWS Amplify Console
     const appId = options.appId;
     const branchName = options.stage;
+
+    console.log("Amplify.deploy", options, sourceUrl);
 
     // Deploy a previously copied zip from S3
     // ! Amplify deploys only changed files from the zip and does garbage collection on redundant files "later"
@@ -38,6 +39,7 @@ class Amplify {
       })
       .promise();
 
+    console.log("Amplify.deploy result:", result);
     return Promise.resolve("zip uploaded to AWS Amplify");
   }
 }

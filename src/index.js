@@ -35,15 +35,24 @@ class WebProducer {
    * @memberof WebProducer
    */
   constructor(options) {
+    // Set console.log and console.error functionality
+    WebProducer._setLogging(options.logLevel);
+
+    console.log("WebProducer.constructor:", options, process.env);
     // Stage as in AWS Lambda definition of stage
     this.stage = options.stage || "dev";
 
-    // In AWS environment Lambda functions are re-entrant (aka warm start) so we need a suffix to support multiple instances
-    const t = new Date().getMilliseconds();
-
     // Construct output paths. Un supplied tmpDirectory requires additional timestamp suffix for uniqueness
-    this.build = options.tmpDirectory ? path.resolve(`${options.tmpDirectory}/build`) : `/tmp/build-${t}`;
-    this.dest = options.tmpDirectory ? path.resolve(`${options.tmpDirectory}/dist`) : `/tmp/dist-${t}`;
+    if (process.env.IS_OFFLINE !== "true") {
+      // In AWS environment Lambda functions are re-entrant (aka warm start) so we need a suffix to support multiple instances
+      const t = new Date().getMilliseconds();
+      this.build = path.resolve(`/tmp/build-${t}`);
+      this.dest = path.resolve(`/tmp/dist-${t}`);
+    } else {
+      // Means we are running local dev and not real AWS environment
+      this.build = path.resolve("../tmp/build");
+      this.dest = path.resolve("../tmp/dist");
+    }
 
     // Optional user function to further shape data retrieved from CMS source
     this.transformFunction = options.transformFunction;
@@ -59,11 +68,36 @@ class WebProducer {
   }
 
   /**
+   * Takes advantage of the global nature of console methods to manage logging verbosity to CloudWatch (receiver of stdOut and stdErr)
+   * @static
+   * @param {*} logLevel
+   * @memberof WebProducer
+   */
+  static _setLogging(logLevel) {
+    // Prevent WP from writing to stdOut, stdErr, etc as it is a blocking synchronous operation and also fills up CloudWatch
+    const verbosity = (logLevel || "none").toLowerCase();
+    switch (verbosity) {
+      case "all":
+        // Show logs and errors
+        break;
+      case "errors":
+        // Show errors
+        console.log = () => {};
+        break;
+      default:
+        // Show nothing
+        console.error = () => {};
+        console.log = () => {};
+    }
+  }
+
+  /**
    * Copies static files and folders, including images, scripts, css, etc, from resources to root of dist.
    * @memberof WebProducer
    * @returns {Promise string}:    Text status
    */
   _copyResources(dest) {
+    console.log("WebProducer._copyResources()");
     return new Promise((resolve, reject) => {
       vfs
         .src(`./resources/**/*.*`)
@@ -82,13 +116,14 @@ class WebProducer {
    * @returns {Promise}:  Status as a string
    */
   async _createDistribution() {
+    console.log("WebProducer._createDistribution()");
     const fnStart = new Date();
     const aws = this.aws;
 
     return new Promise((resolve, reject) => {
       vfs
         .src(`${this.build}/**/*.html`)
-        .on("error", (e) => reject())
+        .on("error", (err) => reject(err))
         .pipe(
           usemin({
             path: this.build,
@@ -136,32 +171,61 @@ class WebProducer {
    * @memberof WebProducer
    */
   async _emptyDirectories() {
-    return Utils.emptyDirectories([this.build, this.dest]);
+    try {
+      const result = Utils.emptyDirectories([this.build, this.dest]);
+      console.log("WebProducer._emptyDirectories():", result);
+      return result;
+    } catch (err) {
+      console.error("WebProducer._emptyDirectories() error:", err);
+      return err;
+    }
   }
 
   /**
    * Combines data with templates to produce HTML, XML and RSS files
    * @param {object} data:      Monolithic (currently) structure containing all data required by all templates
    * @param {object} templates: Previously compiled Handlebars templates
-   * @returns {Promise}:        Status as a string
+   * @returns {Promise}:        Number of pages built
    * @memberof WebProducer
    */
   async _buildPages(data, templates) {
+    // Set a page counter
+    let pages = 0;
+
     // Iterate all available data elements (note: one per "page")
     for (const key in data) {
+      console.log("_buildPages:key", key);
+
       // Isolate the current data element
       const fields = data[key];
-      // Merge the data element with the template indicated in the data elements _modelApiKey property (required)
-      const result = templates[`${fields._modelApiKey}.hbs`](fields);
-      // Calculate the full relative path to the output file
-      const filePath = path.join(this.build, key);
-      // Ensure the calculated path exists by force creating it. Nb: Cheaper to force it each time than to cycle through {fs.exists, then, fs.mkdir}
-      await fs.mkdir(path.parse(filePath).dir, { recursive: true });
-      // Write the result to the filesystem at the filePath
-      await fs.writeFile(filePath, result, { encoding: "utf8" });
+      console.log("_buildPages:fields", typeof fields);
+
+      // Only attempt to build a page if the fields data contains a reference to the physical ebs file to use
+      if (fields._modelApiKey && templates[`${fields._modelApiKey}.hbs`]) {
+        // Merge the data element with the template indicated in the data elements _modelApiKey property (required)
+        const result = templates[`${fields._modelApiKey}.hbs`](fields);
+        // Calculate the full relative path to the output file
+        const filePath = path.join(this.build, key);
+
+        console.log("_buildPages:_modelApiKey", fields._modelApiKey, filePath);
+
+        try {
+          // Ensure the calculated path exists by force creating it. Nb: Cheaper to force it each time than to cycle through {fs.exists, then, fs.mkdir}
+          await fs.mkdir(path.parse(filePath).dir, { recursive: true });
+          // Write the result to the filesystem at the filePath
+          await fs.writeFile(filePath, result, { encoding: "utf8" });
+          // Increment the page counter
+          pages++;
+        } catch (err) {
+          console.error("_buildPages", err);
+        }
+      } else {
+        warn(`_buildPages: ${fields._modelApiKey} was not found`);
+      }
     }
-    // Return a Promise of the status
-    return Promise.resolve("pages built");
+
+    // Return a Promise of the number of pages built
+    return pages;
   }
 
   /**
@@ -205,11 +269,12 @@ class WebProducer {
       // The build process needs access to .js and .css
       this._copyResources(this.build),
       // The distribution process needs access to all the files
-      //this._copyResources(this.dest),
       this._buildPages(siteData, handlebars.templates),
     ]).catch((reason) => {
-      console.error("in 2", reason);
+      console.error("copy and build:", reason);
     });
+
+    console.log(`pagesBuilt:${pagesBuilt}`);
 
     // Both stage and prod require a distribution of minified and concatenated resources be built and placed in dist and S3
     if (stage === "stage" || stage === "prod") {
