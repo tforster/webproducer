@@ -2,22 +2,24 @@
 ("use strict");
 
 // System dependencies (Built in modules)
-const fs = require("fs").promises;
+//const fs = require("fs").promises;
 const path = require("path");
+const fsp = require("fs").promises;
+const fs = require("fs");
 
 // Third party dependencies (Typically found in public NPM packages)
-const minifyCss = require("gulp-minify-css");
+const cleanCSS = require("gulp-clean-css");
 const minifyHtml = require("gulp-htmlmin");
-const minifyJs = require("gulp-terser");
-const rev = require("gulp-rev");
-const usemin = require("gulp-usemin");
+const sourcemaps = require("gulp-sourcemaps");
+const terser = require("gulp-terser");
 const vfs = require("vinyl-fs");
 
 // Project dependencies
 const Amplify = require("./Amplify");
 const GraphQLDataProvider = require("./GraphQLDataProvider");
 const Utils = require("./Utils");
-const Handlebars = require("./HandlebarsHelper");
+const HandlebarsHelper = require("./HandlebarsHelper");
+const VMove = require("./Vinyl-move");
 const vs3 = require("./Vinyl-s3");
 const vsitemap = require("./Vinyl-sitemap");
 const vzip = require("./Vinyl-zip");
@@ -64,7 +66,6 @@ class WebProducer {
     this.datoCMSToken = options.datoCMSToken;
     // Amplify appId
     this.appId = options.appId;
-    this.cache = this.cache || { cache: {} };
   }
 
   /**
@@ -92,61 +93,13 @@ class WebProducer {
   }
 
   /**
-   * Copies static files and folders, including images, scripts, css, etc, from resources to root of dist.
-   * @memberof WebProducer
-   * @returns {Promise string}:    Text status
-   */
-  _copyResources(dest) {
-    console.log("WebProducer._copyResources()");
-    return new Promise((resolve, reject) => {
-      vfs
-        .src(`./resources/**/*.*`)
-        .on("error", (err) => reject(err))
-        .on("end", function() {
-          resolve("resources copied");
-        })
-        .pipe(vfs.dest(dest));
-    });
-  }
-
-  /**
-   * Minifies and concatenates HTML, CSS and JavaScript. Also cache busts the minified CSS and JS files before creating and
-   * uploading a zip file to AWS S3.
-   * @memberof WebProducer
-   * @returns {Promise}:  Status as a string
-   */
-  async _createDistribution() {
-    console.log("WebProducer._createDistribution()");
-    const fnStart = new Date();
-    const aws = this.aws;
-
-    return new Promise((resolve, reject) => {
-      vfs
-        .src(`${this.build}/**/*.html`)
-        .on("error", (err) => reject(err))
-        .pipe(
-          usemin({
-            path: this.build,
-            outputRelativePath: ".",
-            css: [() => minifyCss(), () => rev()],
-            html: [() => minifyHtml({ collapseWhitespace: true, removeComments: true })],
-            js: [() => minifyJs(), () => rev()],
-          })
-        )
-        .pipe(vzip.zip("archive.zip"))
-        .pipe(vs3.dest(null, { aws: { bucket: aws.bucket, key: aws.key, region: aws.region } }))
-        .on("finish", () => resolve(`Distribution created and uploaded to S3 in ${new Date() - fnStart}ms`));
-    });
-  }
-
-  /**
    * Wrapper around our module that fetches data from DatoCMS
    * @memberof WebProducer
    * @returns {Promise}:  Data from CMS
    */
   async _fetchData() {
     const graphQLOptions = {
-      query: "./db/query.graphql",
+      query: "./stack/db/query.graphql",
       endpoint: "https://graphql.datocms.com/",
       transform: this.transformFunction,
       token: this.datoCMSToken,
@@ -154,78 +107,6 @@ class WebProducer {
 
     // .data returns a Promise
     return GraphQLDataProvider.data(graphQLOptions);
-  }
-
-  /**
-   * Wrapper around our Handlebars module wrapper to pre-compile templates
-   * @returns {Promise}:  An instance of Handlebars with .partials and .templates populated
-   * @memberof WebProducer
-   */
-  async _compileTemplates(pathsArray) {
-    return Handlebars.precompile(pathsArray);
-  }
-
-  /**
-   * Wrapper around our empty directory utility method
-   * @returns {Promise}:  Currently null/undefined
-   * @memberof WebProducer
-   */
-  async _emptyDirectories() {
-    try {
-      const result = Utils.emptyDirectories([this.build, this.dest]);
-      console.log("WebProducer._emptyDirectories():", result);
-      return result;
-    } catch (err) {
-      console.error("WebProducer._emptyDirectories() error:", err);
-      return err;
-    }
-  }
-
-  /**
-   * Combines data with templates to produce HTML, XML and RSS files
-   * @param {object} data:      Monolithic (currently) structure containing all data required by all templates
-   * @param {object} templates: Previously compiled Handlebars templates
-   * @returns {Promise}:        Number of pages built
-   * @memberof WebProducer
-   */
-  async _buildPages(data, templates) {
-    // Set a page counter
-    let pages = 0;
-
-    // Iterate all available data elements (note: one per "page")
-    for (const key in data) {
-      console.log("_buildPages:key", key);
-
-      // Isolate the current data element
-      const fields = data[key];
-      console.log("_buildPages:fields", typeof fields);
-
-      // Only attempt to build a page if the fields data contains a reference to the physical ebs file to use
-      if (fields._modelApiKey && templates[`${fields._modelApiKey}.hbs`]) {
-        // Merge the data element with the template indicated in the data elements _modelApiKey property (required)
-        const result = templates[`${fields._modelApiKey}.hbs`](fields);
-        // Calculate the full relative path to the output file
-        const filePath = path.join(this.build, key);
-
-        console.log("_buildPages:_modelApiKey", fields._modelApiKey, filePath);
-
-        try {
-          // Ensure the calculated path exists by force creating it. Nb: Cheaper to force it each time than to cycle through {fs.exists, then, fs.mkdir}
-          await fs.mkdir(path.parse(filePath).dir, { recursive: true });
-          // Write the result to the filesystem at the filePath
-          await fs.writeFile(filePath, result, { encoding: "utf8" });
-          // Increment the page counter
-          pages++;
-        } catch (err) {
-          console.error("_buildPages", err);
-        }
-      } else {
-        warn(`_buildPages: ${fields._modelApiKey} was not found`);
-      }
-    }
-
-    // Return a Promise of the number of pages built
-    return pages;
   }
 
   /**
@@ -245,49 +126,85 @@ class WebProducer {
     });
   }
 
-  /**
-   * @memberof WebProducer
-   */
   async main() {
-    const start = new Date();
+    const now = new Date().getTime();
     const stage = this.stage;
+    const hb = new HandlebarsHelper();
 
-    // 1. Await the preparation of the environment, fetch data and initialise handlebars
-    const [emptyDirectories, siteData, handlebars] = await Promise.all([
-      this._emptyDirectories(),
+    // Empty our distribution directory. Required for local dev only! Stage/prod use pure streams.
+    if (stage === "dev") {
+      await Utils.emptyDirectories("./tmp/dist");
+    }
+
+    // The following two activities can run in parallel but we ONLY NEED siteData at resolution
+    const [siteData] = await Promise.all([
+      // Fetch data from DatoCMS (GraphQL)
       this._fetchData(),
-      this._compileTemplates(["./theme/organisms", "./theme/templates"]),
+      // Precompile all the handlebars files in src/theme
+      hb.precompile(["./stack/theme/organisms", "./stack/theme/templates"]),
     ]).catch((reason) => {
       console.error(reason);
     });
 
-    // await this._copyResources(this.build);
-    // console.log("copieD");
+    // Generate pages by combining the templates precompiled above and the data, also fetched above
+    const pages = await hb.build(siteData);
 
-    // 2. Await the creation and copying of files to the build directory
-    const [buildCopied, pagesBuilt] = await Promise.all([
-      // The build process needs access to .js and .css
-      this._copyResources(this.build),
-      // The distribution process needs access to all the files
-      this._buildPages(siteData, handlebars.templates),
-    ]).catch((reason) => {
-      console.error("copy and build:", reason);
-    });
+    // Certain directories in src will require pre-processing and should not be copied to the destination raw
+    const blackList = ["!./stack/db/**", "!./stack/scripts/**", "!./stack/stylesheets/**", "!./stack/theme/**"];
 
-    console.log(`pagesBuilt:${pagesBuilt}`);
+    // Create an array of stream reader sources to eventually pass to a single stream writer
+    const streams = [
+      // Copy all of the src tree, minus black listed globs
+      vfs.src(["./stack/**/*.*", ...blackList]),
+      // Copy scripts after first minifying them
+      vfs
+        .src("./stack/scripts/**/*.js")
+        .pipe(sourcemaps.init())
+        .pipe(terser())
+        .pipe(sourcemaps.write("/")),
+      // Copy css files after first minifying them
+      vfs
+        .src("./stack/stylesheets/**/*.css")
+        .pipe(sourcemaps.init())
+        .pipe(cleanCSS())
+        .pipe(sourcemaps.write("/")),
+      // Copy pages after first minifying them
+      pages.stream.pipe(minifyHtml({ collapseWhitespace: true, removeComments: true })),
+    ];
 
-    // Both stage and prod require a distribution of minified and concatenated resources be built and placed in dist and S3
-    if (stage === "stage" || stage === "prod") {
-      const distributed = await this._createDistribution();
+    // Dev writes to the local file system via VFS while stage and prod write to a Zip stream
+    const destinationStream = stage !== "dev" ? vzip.zip() : vfs.dest("./tmp/dist");
+
+    // Aggregate all source streams into tmpStream
+    await Promise.all(
+      // Promisify each vfs readable stream
+      streams.map(
+        async (source) =>
+          new Promise((resolve, reject) => {
+            // Set success and failure handlers
+            source.on("end", () => {
+              console.log("end", source);
+              resolve();
+            });
+            source.on("error", (err) => {
+              console.error(err);
+              reject(err);
+            });
+            // Start piping using {end: false} to ensure the writeable stream remains open for the next readable stream
+            source.pipe(destinationStream, { end: false });
+          })
+      )
+    );
+
+    if (stage !== "dev") {
+      // The destinationStream has one more stream, S3, to write to
+      destinationStream.pipe(new vs3(this.aws));
+      await this._deploy(this.appId, this.stage, this.aws);
     }
+    // No more processing required so close everything down
+    destinationStream.end();
 
-    // Prod requires S3://...archive.zip be deployed to Amplify
-    // Currently allowing both stage and prod to go to Amplify. ToDo: Should we allow for a local or S3 hosted stage instead of AWS?
-    if (stage === "stage" || stage == "prod") {
-      const deployed = await this._deploy(this.appId, this.stage, this.aws);
-    }
-
-    console.log(`Elapsed time: ${new Date() - start}ms`);
+    console.log(`Elapsed time: ${new Date().getTime() - now}ms`);
   }
 }
 

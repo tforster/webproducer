@@ -13,6 +13,7 @@ class VinylZip {
   static zip(archiveName = "archive.zip") {
     return through.obj(
       (file, _, done) => {
+        console.log("ZIP:", file.basename);
         zip.file(file.relative, file.contents);
         done(null);
       },

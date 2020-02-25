@@ -31,7 +31,7 @@ class Amplify {
 
     // Deploy a previously copied zip from S3
     // ! Amplify deploys only changed files from the zip and does garbage collection on redundant files "later"
-    await amplify
+    const result = await amplify
       .startDeployment({
         appId,
         branchName,

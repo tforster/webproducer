@@ -9,6 +9,9 @@ class Utils {
    * @memberof Utils
    */
   static async emptyDirectories(directories) {
+    if (!Array.isArray(directories)) {
+      directories = [directories];
+    }
     return Promise.all(directories.map((directory) => fs.rmdir(directory, { recursive: true })));
   }
 }

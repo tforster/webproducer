@@ -46,9 +46,11 @@
   },
   "dependencies": {
     "aws-sdk": "^2.594.0",
+    "gulp-clean-css": "^4.2.0",
     "gulp-htmlmin": "^5.0.1",
     "gulp-minify-css": "^1.2.4",
     "gulp-rev": "^9.0.0",
+    "gulp-sourcemaps": "^2.6.5",
     "gulp-terser": "^1.2.0",
     "gulp-usemin": "^0.3.30",
     "handlebars": "^4.5.3",
@@ -57,8 +59,5 @@
     "terser": "^4.4.3",
     "vinyl": "^2.2.0",
     "vinyl-fs": "^3.0.3"
-  },
-  "directories": {
-    "example": "example"
   }
 }
