@@ -2,10 +2,7 @@
 ("use strict");
 
 // System dependencies (Built in modules)
-//const fs = require("fs").promises;
 const path = require("path");
-const fsp = require("fs").promises;
-const fs = require("fs");
 
 // Third party dependencies (Typically found in public NPM packages)
 const cleanCSS = require("gulp-clean-css");
@@ -19,9 +16,7 @@ const Amplify = require("./Amplify");
 const GraphQLDataProvider = require("./GraphQLDataProvider");
 const Utils = require("./Utils");
 const HandlebarsHelper = require("./HandlebarsHelper");
-const VMove = require("./Vinyl-move");
 const vs3 = require("./Vinyl-s3");
-const vsitemap = require("./Vinyl-sitemap");
 const vzip = require("./Vinyl-zip");
 
 /**
@@ -44,16 +39,11 @@ class WebProducer {
     // Stage as in AWS Lambda definition of stage
     this.stage = options.stage || "dev";
 
-    // Construct output paths. Un supplied tmpDirectory requires additional timestamp suffix for uniqueness
-    if (process.env.IS_OFFLINE !== "true") {
-      // In AWS environment Lambda functions are re-entrant (aka warm start) so we need a suffix to support multiple instances
-      const t = new Date().getMilliseconds();
-      this.build = path.resolve(`/tmp/build-${t}`);
-      this.dest = path.resolve(`/tmp/dist-${t}`);
-    } else {
-      // Means we are running local dev and not real AWS environment
-      this.build = path.resolve("../tmp/build");
-      this.dest = path.resolve("../tmp/dist");
+    if (this.stage === "dev") {
+      // Force loggin on and write output to relative dist folder
+      this.dest = path.resolve("../dist");
+      WebProducer._setLogging("ALL");
+      console.log("Stage configured for development.");
     }
 
     // Optional user function to further shape data retrieved from CMS source
@@ -97,16 +87,20 @@ class WebProducer {
    * @memberof WebProducer
    * @returns {Promise}:  Data from CMS
    */
-  async _fetchData() {
+  async _fetchData(queryPath) {
     const graphQLOptions = {
-      query: "./stack/db/query.graphql",
+      query: path.resolve(queryPath),
       endpoint: "https://graphql.datocms.com/",
       transform: this.transformFunction,
       token: this.datoCMSToken,
     };
 
     // .data returns a Promise
-    return GraphQLDataProvider.data(graphQLOptions);
+    try {
+      return GraphQLDataProvider.data(graphQLOptions);
+    } catch (err) {
+      console.error("_fetchData():", err);
+    }
   }
 
   /**
@@ -126,6 +120,10 @@ class WebProducer {
     });
   }
 
+  /**
+   * Entry point into WebProducer
+   * @memberof WebProducer
+   */
   async main() {
     const now = new Date().getTime();
     const stage = this.stage;
@@ -133,38 +131,38 @@ class WebProducer {
 
     // Empty our distribution directory. Required for local dev only! Stage/prod use pure streams.
     if (stage === "dev") {
-      await Utils.emptyDirectories("./tmp/dist");
+      await Utils.emptyDirectories(this.dest);
     }
 
     // The following two activities can run in parallel but we ONLY NEED siteData at resolution
     const [siteData] = await Promise.all([
       // Fetch data from DatoCMS (GraphQL)
-      this._fetchData(),
+      this._fetchData("../stack/db/query.graphql"),
       // Precompile all the handlebars files in src/theme
-      hb.precompile(["./stack/theme/organisms", "./stack/theme/templates"]),
+      hb.precompile(["../stack/theme/organisms", "../stack/theme/templates"]),
     ]).catch((reason) => {
-      console.error(reason);
+      console.error("WP:Main.sitedata", reason);
     });
 
     // Generate pages by combining the templates precompiled above and the data, also fetched above
     const pages = await hb.build(siteData);
 
     // Certain directories in src will require pre-processing and should not be copied to the destination raw
-    const blackList = ["!./stack/db/**", "!./stack/scripts/**", "!./stack/stylesheets/**", "!./stack/theme/**"];
+    const blackList = ["!../stack/db/**", "!../stack/scripts/**", "!../stack/stylesheets/**", "!../stack/theme/**"];
 
     // Create an array of stream reader sources to eventually pass to a single stream writer
     const streams = [
       // Copy all of the src tree, minus black listed globs
-      vfs.src(["./stack/**/*.*", ...blackList]),
+      vfs.src(["../stack/**/*.*", ...blackList]),
       // Copy scripts after first minifying them
       vfs
-        .src("./stack/scripts/**/*.js")
+        .src("../stack/scripts/**/*.js")
         .pipe(sourcemaps.init())
         .pipe(terser())
         .pipe(sourcemaps.write("/")),
       // Copy css files after first minifying them
       vfs
-        .src("./stack/stylesheets/**/*.css")
+        .src("../stack/stylesheets/**/*.css")
         .pipe(sourcemaps.init())
         .pipe(cleanCSS())
         .pipe(sourcemaps.write("/")),
@@ -173,7 +171,7 @@ class WebProducer {
     ];
 
     // Dev writes to the local file system via VFS while stage and prod write to a Zip stream
-    const destinationStream = stage !== "dev" ? vzip.zip() : vfs.dest("./tmp/dist");
+    const destinationStream = stage !== "dev" ? vzip.zip() : vfs.dest(this.dest);
 
     // Aggregate all source streams into tmpStream
     await Promise.all(
@@ -183,7 +181,6 @@ class WebProducer {
           new Promise((resolve, reject) => {
             // Set success and failure handlers
             source.on("end", () => {
-              console.log("end", source);
               resolve();
             });
             source.on("error", (err) => {

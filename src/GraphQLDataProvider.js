@@ -15,11 +15,9 @@ class GraphQLDataProvider {
   static async data(options) {
     console.log("GraphQLDataProvider.data.options", options);
 
-    //return new Promise(async (resolve, reject) => {
-    // Fetch the query to execute
-    const query = await fs.readFile(options.query, { encoding: "utf8" });
-
     try {
+      // Fetch the query to execute
+      const query = await fs.readFile(options.query, { encoding: "utf8" });
       const response = await fetch(options.endpoint, {
         method: "POST",
         headers: {
@@ -31,13 +29,20 @@ class GraphQLDataProvider {
           query: query,
         }),
       });
-      let data = (await response.json()).data;
 
-      if (options.transform) {
-        data = options.transform(data);
+      const result = await response.json();
+
+      if (result.errors) {
+        console.log("GraphQLDataProvider.data errors");
+        throw result;
+      } else if (result.data) {
+        let data = result.data;
+        if (options.transform) {
+          data = options.transform(data);
+        }
+        console.log("GraphQLDataProvider.data success");
+        return data;
       }
-      console.log("GraphQLDataProvider.data success");
-      return data;
     } catch (err) {
       console.error("GraphQLDataProvider.data error", err);
       return err;
