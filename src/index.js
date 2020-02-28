@@ -41,9 +41,20 @@ class WebProducer {
 
     if (this.stage === "dev") {
       // Force loggin on and write output to relative dist folder
-      this.dest = path.resolve("../dist");
+
       WebProducer._setLogging("ALL");
       console.log("Stage configured for development.");
+    }
+
+    if (process.env["IS_OFFLINE"] === "true") {
+      console.log("Running offline with Serverless Offline plugin");
+      this.offline = true;
+      this.dest = path.resolve("../dist/");
+      this.src = path.resolve("../stack/");
+    } else {
+      this.offline = false;
+      this.dest = path.resolve("/tmp/dist/");
+      this.src = path.resolve("/tmp/stack/");
     }
 
     // Optional user function to further shape data retrieved from CMS source
@@ -89,7 +100,7 @@ class WebProducer {
    */
   async _fetchData(queryPath) {
     const graphQLOptions = {
-      query: path.resolve(queryPath),
+      query: queryPath,
       endpoint: "https://graphql.datocms.com/",
       transform: this.transformFunction,
       token: this.datoCMSToken,
@@ -127,19 +138,29 @@ class WebProducer {
   async main() {
     const now = new Date().getTime();
     const stage = this.stage;
-    const hb = new HandlebarsHelper();
 
-    // Empty our distribution directory. Required for local dev only! Stage/prod use pure streams.
-    if (stage === "dev") {
+    // Do some filesystem preparation
+    if (this.offline) {
+      // Running locally (not AWS) so empty our distribution directory. Required for local dev only! Stage/prod use pure streams.
       await Utils.emptyDirectories(this.dest);
+    } else {
+      // Fetch templates from S3
+      const s3Stream = new vs3(this.aws);
+      await s3Stream.pipe(vfs.dest(this.src)).on("end", () => {
+        console.log("S3 ended");
+        Promise.resolve();
+      });
     }
+
+    // Initialise the Handlebars helper class
+    const hb = new HandlebarsHelper();
 
     // The following two activities can run in parallel but we ONLY NEED siteData at resolution
     const [siteData] = await Promise.all([
       // Fetch data from DatoCMS (GraphQL)
-      this._fetchData("../stack/db/query.graphql"),
+      this._fetchData(path.join(this.src, "db/query.graphql")),
       // Precompile all the handlebars files in src/theme
-      hb.precompile(["../stack/theme/organisms", "../stack/theme/templates"]),
+      hb.precompile([path.join(this.src, "theme/organisms"), path.join(this.src, "theme/templates")]),
     ]).catch((reason) => {
       console.error("WP:Main.sitedata", reason);
     });
@@ -148,21 +169,26 @@ class WebProducer {
     const pages = await hb.build(siteData);
 
     // Certain directories in src will require pre-processing and should not be copied to the destination raw
-    const blackList = ["!../stack/db/**", "!../stack/scripts/**", "!../stack/stylesheets/**", "!../stack/theme/**"];
+    const blackList = [
+      `!${path.join(this.src, "db/**")}`,
+      `!${path.join(this.src, "scripts/**")}`,
+      `!${path.join(this.src, "stylesheets/**")}`,
+      `!${path.join(this.src, "theme/**")}`,
+    ];
 
     // Create an array of stream reader sources to eventually pass to a single stream writer
     const streams = [
       // Copy all of the src tree, minus black listed globs
-      vfs.src(["../stack/**/*.*", ...blackList]),
+      vfs.src([path.join(this.src, "**/*.*"), ...blackList]),
       // Copy scripts after first minifying them
       vfs
-        .src("../stack/scripts/**/*.js")
+        .src(path.join(this.src, "scripts/**/*.js"))
         .pipe(sourcemaps.init())
         .pipe(terser())
         .pipe(sourcemaps.write("/")),
       // Copy css files after first minifying them
       vfs
-        .src("../stack/stylesheets/**/*.css")
+        .src(path.join(this.src, "stylesheets/**/*.css"))
         .pipe(sourcemaps.init())
         .pipe(cleanCSS())
         .pipe(sourcemaps.write("/")),
