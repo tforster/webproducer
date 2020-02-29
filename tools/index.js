@@ -26,7 +26,7 @@ const transformFunction = (data) => {
 
 const options = {
   transformFunction,
-  stage: "stage",
+  stage: "dev",
   logLevel: "ALL",
   datoCMSToken: process.env["DATOCMS_TOKEN"],
   amplifyBucket: "wp.yourmentalwealthadvisors.com",

@@ -47,11 +47,13 @@ class WebProducer {
     }
 
     if (process.env["IS_OFFLINE"] === "true") {
-      console.log("Running offline with Serverless Offline plugin");
+      // When running offline we let the developer control the filesystem
+      console.log("Running offline with Serverless Offline plugin or local dev");
       this.offline = true;
-      this.dest = path.resolve("../dist/");
-      this.src = path.resolve("../stack/");
+      this.dest = path.resolve(options.dist);
+      this.src = path.resolve(options.src);
     } else {
+      // AWS Lambda execution environment only allows write to the /tmp directory
       this.offline = false;
       this.dest = path.resolve("/tmp/dist/");
       this.src = path.resolve("/tmp/stack/");
