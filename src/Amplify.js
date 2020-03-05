@@ -17,8 +17,10 @@ class Amplify {
    * @memberof Amplify
    */
   static async deploy(options) {
+    console.log("Amplify.deploy.options:", options);
     // Construct the source Url to fetch the archive from
-    const sourceUrl = `https://s3.${options.aws.bucketRegion}.amazonaws.com/${options.aws.bucket}/${options.aws.key}`;
+    const sourceUrl = `https://s3.${options.aws.bucketRegion}.amazonaws.com/${options.aws.Bucket}/${options.aws.key}`;
+    console.log("Amplify.deploy.sourceUrl:", sourceUrl);
 
     // Create new Amplify client
     const amplify = new AWS.Amplify({ region: options.aws.amplifyRegion });

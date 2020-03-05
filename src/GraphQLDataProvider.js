@@ -12,13 +12,21 @@ class GraphQLDataProvider {
    * @returns
    * @memberof GraphQLDataProvider
    */
-  static async data(options) {
+  static async data(options, preview) {
     console.log("GraphQLDataProvider.data.options", options);
 
     try {
       // Fetch the query to execute
       const query = await fs.readFile(options.query, { encoding: "utf8" });
-      const response = await fetch(options.endpoint, {
+
+      // Construct the URL for preview vs published. GraphQL endpoint of "/" = published, "/preview" includes drafts
+      const url = new URL(options.endpoint);
+      if (preview) {
+        url.pathname = "preview";
+      }
+
+      // Execute the request
+      const response = await fetch(url.href, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

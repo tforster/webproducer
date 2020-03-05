@@ -62,6 +62,8 @@ class WebProducer {
     this.datoCMSToken = options.datoCMSToken;
     // Amplify appId
     this.appId = options.appId;
+    // Determine whether to use draft or published data
+    this.preview = options.preview;
   }
 
   /**
@@ -128,7 +130,7 @@ class WebProducer {
    * @memberof WebProducer
    * @returns {Promise}:  Data from CMS
    */
-  async _fetchData(queryPath) {
+  async _fetchData(queryPath, preview) {
     const graphQLOptions = {
       query: queryPath,
       endpoint: "https://graphql.datocms.com/",
@@ -138,7 +140,7 @@ class WebProducer {
 
     // .data returns a Promise
     try {
-      return await GraphQLDataProvider.data(graphQLOptions);
+      return await GraphQLDataProvider.data(graphQLOptions, preview);
     } catch (err) {
       console.error("_fetchData():", err);
       throw err;
@@ -215,7 +217,7 @@ class WebProducer {
     // The following two activities can run in parallel but we ONLY NEED siteData at resolution
     const [siteData] = await Promise.all([
       // Fetch data from DatoCMS (GraphQL)
-      this._fetchData(path.join(this.templateCache, "db/query.graphql")),
+      this._fetchData(path.join(this.templateCache, "db/query.graphql"), this.preview),
       // Precompile all the handlebars files in src/theme
       hb.precompile([path.join(this.templateCache, "theme/organisms"), path.join(this.templateCache, "theme/templates")]),
     ]).catch((reason) => {
@@ -286,7 +288,13 @@ class WebProducer {
       console.log("WP:main.deploy");
       // The destinationStream has one more stream, S3, to write to
       destinationStream.pipe(new vs3(this.destination));
-      await this._deploy(this.appId, this.stage, this.amplify);
+      //await this._deploy(this.appId, this.stage, this.amplify);
+      await Amplify.deploy({
+        appId: this.appId,
+        stage: this.stage,
+        // Note that Amplify is not available in all regions yet, including ca-central-1. Force to us-east-1 for now.
+        aws: { Bucket: this.amplify.Bucket, key: this.amplify.key, bucketRegion: this.amplify.region, amplifyRegion: "us-east-1" },
+      });
     }
     // No more processing required so close everything down
     destinationStream.end();
