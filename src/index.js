@@ -41,34 +41,62 @@ class WebProducer {
 
     if (this.stage === "dev") {
       // Force loggin on and write output to relative dist folder
-
       WebProducer._setLogging("ALL");
       console.log("Stage configured for development.");
     }
 
-    if (process.env["IS_OFFLINE"] === "true") {
-      // When running offline we let the developer control the filesystem
-      console.log("Running offline with Serverless Offline plugin or local dev");
-      this.offline = true;
-      this.dest = path.resolve(options.dist);
-      this.src = path.resolve(options.src);
-    } else {
-      // AWS Lambda execution environment only allows write to the /tmp directory
-      this.offline = false;
-      this.dest = path.resolve("/tmp/dist/");
-      this.src = path.resolve("/tmp/stack/");
-    }
+    // Configure the templates source and destination objects (can be S3 or local filesystem or combo)
+    this.templateSource = this._vinylesque(options.templateSource);
+    this.destination = this._vinylesque(options.destination);
+
+    // The templateCache is the actual pointer to the local filesystem to find the template files
+    this.templateCache = path.resolve(this.templateSource.Bucket ? "/tmp/src" : this.templateSource.path);
 
     // Optional user function to further shape data retrieved from CMS source
     this.transformFunction = options.transformFunction;
     // Name of S3 bucket to upload this.dist contents to
-    this.amplifyBucket = options.amplifyBucket;
+    this.amplify = options.amplify;
     // Additional AWS options, including ./aws/credentials profile
     this.aws = options.aws;
     // READ-ONLY token to access CMS
     this.datoCMSToken = options.datoCMSToken;
     // Amplify appId
     this.appId = options.appId;
+  }
+
+  /**
+   * Parses the supplied metaData string into a Vinyl-like structure that can be used with the Vinyl constructor later
+   * @param {string} metaData:  An S3 URL, or an absolute path, or a relative path
+   * @returns:                  A lean object that can be used in a Vinyl file constructor with additional properties
+   * @memberof WebProducer
+   */
+  _vinylesque(metaData) {
+    let vinylesque = {};
+
+    if (typeof metaData === "object") {
+      // Assume an S3 object
+      vinylesque = { ...metaData };
+      vinylesque.path = metaData.Key || "";
+    } else {
+      // Assume a file path string
+      vinylesque.path = path.resolve(metaData);
+    }
+    // Calculate the Vinyl base.
+    // ToDo: Determine if this is needed when we create legit Vinyl file
+    vinylesque.base = path.dirname(vinylesque.path);
+
+    // Use RegEx to determine if last path segment is a filename (at least one "." must be present)
+    const matches = vinylesque.path.match(/\/[^.^\/]*$/g);
+    if (matches) {
+      // Is a directory
+      vinylesque.stat = { mode: 16384 };
+    } else {
+      // Is a file
+      vinylesque.stat = { mode: 32768 };
+      vinylesque.filename = path.basename(vinylesque.path);
+    }
+
+    return vinylesque;
   }
 
   /**
@@ -110,9 +138,10 @@ class WebProducer {
 
     // .data returns a Promise
     try {
-      return GraphQLDataProvider.data(graphQLOptions);
+      return await GraphQLDataProvider.data(graphQLOptions);
     } catch (err) {
       console.error("_fetchData():", err);
+      throw err;
     }
   }
 
@@ -124,12 +153,28 @@ class WebProducer {
    * @returns {Promise}:    Status as a string
    * @memberof WebProducer
    */
-  async _deploy(appId, stage, aws) {
+  async _deploy(appId, stage, amplify) {
     return Amplify.deploy({
       appId,
       stage,
       // Note that Amplify is not available in all regions yet, including ca-central-1. Force to us-east-1 for now.
-      aws: { bucket: aws.bucket, key: aws.key, bucketRegion: aws.region, amplifyRegion: "us-east-1" },
+      aws: { Bucket: amplify.Bucket, key: amplify.key, bucketRegion: amplify.region, amplifyRegion: "us-east-1" },
+    });
+  }
+
+  async _fetchTemplatesFromS3() {
+    console.time("Fetch templates from S3");
+    return new Promise(async (resolve, reject) => {
+      // Empty the temporary directory first
+      await Utils.emptyDirectories(this.templateCache);
+
+      // Create a VinylS3 stream
+      const s3Stream = new vs3(this.templateSource);
+      s3Stream.on("end", () => resolve());
+      // Start piping
+      s3Stream.pipe(vfs.dest(this.templateCache)).on("finish", () => {
+        console.timeEnd("Fetch templates from S3", "DONE");
+      });
     });
   }
 
@@ -138,20 +183,30 @@ class WebProducer {
    * @memberof WebProducer
    */
   async main() {
-    const now = new Date().getTime();
-    const stage = this.stage;
+    console.time("WebProducer", "start");
 
     // Do some filesystem preparation
-    if (this.offline) {
-      // Running locally (not AWS) so empty our distribution directory. Required for local dev only! Stage/prod use pure streams.
-      await Utils.emptyDirectories(this.dest);
+    // | property    | offline | online |
+    // |-------------|---------|--------|
+    // | local       | true    |        |
+    // | aws         |         | true   |
+    // | s3-source   | true    | true   |
+    // | s3-dest     | true    | true   |
+    // | file-source | true    | false  |
+    // | file-dest   | true    | false  |
+
+    // If templateSource has a Bucket property then it describes a remote S3 bucket and we need to get its contents locally
+    if (this.templateSource.Bucket) {
+      console.log("hello world");
+      console.timeLog("WebProducer", "in s3");
+      await this._fetchTemplatesFromS3();
+    }
+    console.timeLog("WebProducer", "out s3");
+    if (this.destination.Bucket) {
+      // ToDo: Consider a way of emptying or synchronising destination buckets
     } else {
-      // Fetch templates from S3
-      const s3Stream = new vs3(this.aws);
-      await s3Stream.pipe(vfs.dest(this.src)).on("end", () => {
-        console.log("S3 ended");
-        Promise.resolve();
-      });
+      // Destination is a filesytem so empty the destination subdirectory
+      await Utils.emptyDirectories(this.destination.path);
     }
 
     // Initialise the Handlebars helper class
@@ -160,37 +215,42 @@ class WebProducer {
     // The following two activities can run in parallel but we ONLY NEED siteData at resolution
     const [siteData] = await Promise.all([
       // Fetch data from DatoCMS (GraphQL)
-      this._fetchData(path.join(this.src, "db/query.graphql")),
+      this._fetchData(path.join(this.templateCache, "db/query.graphql")),
       // Precompile all the handlebars files in src/theme
-      hb.precompile([path.join(this.src, "theme/organisms"), path.join(this.src, "theme/templates")]),
+      hb.precompile([path.join(this.templateCache, "theme/organisms"), path.join(this.templateCache, "theme/templates")]),
     ]).catch((reason) => {
       console.error("WP:Main.sitedata", reason);
+      throw reason;
     });
+
+    if (!siteData || siteData === {}) {
+      throw new Error("No data provided");
+    }
 
     // Generate pages by combining the templates precompiled above and the data, also fetched above
     const pages = await hb.build(siteData);
 
     // Certain directories in src will require pre-processing and should not be copied to the destination raw
     const blackList = [
-      `!${path.join(this.src, "db/**")}`,
-      `!${path.join(this.src, "scripts/**")}`,
-      `!${path.join(this.src, "stylesheets/**")}`,
-      `!${path.join(this.src, "theme/**")}`,
+      `!${path.join(this.templateCache, "db/**")}`,
+      `!${path.join(this.templateCache, "scripts/**")}`,
+      `!${path.join(this.templateCache, "stylesheets/**")}`,
+      `!${path.join(this.templateCache, "theme/**")}`,
     ];
 
     // Create an array of stream reader sources to eventually pass to a single stream writer
     const streams = [
       // Copy all of the src tree, minus black listed globs
-      vfs.src([path.join(this.src, "**/*.*"), ...blackList]),
+      vfs.src([path.join(this.templateCache, "**/*.*"), ...blackList]),
       // Copy scripts after first minifying them
       vfs
-        .src(path.join(this.src, "scripts/**/*.js"))
+        .src(path.join(this.templateCache, "scripts/**/*.js"))
         .pipe(sourcemaps.init())
         .pipe(terser())
         .pipe(sourcemaps.write("/")),
       // Copy css files after first minifying them
       vfs
-        .src(path.join(this.src, "stylesheets/**/*.css"))
+        .src(path.join(this.templateCache, "stylesheets/**/*.css"))
         .pipe(sourcemaps.init())
         .pipe(cleanCSS())
         .pipe(sourcemaps.write("/")),
@@ -198,8 +258,8 @@ class WebProducer {
       pages.stream.pipe(minifyHtml({ collapseWhitespace: true, removeComments: true })),
     ];
 
-    // Dev writes to the local file system via VFS while stage and prod write to a Zip stream
-    const destinationStream = stage !== "dev" ? vzip.zip() : vfs.dest(this.dest);
+    // determine whether to pipe to a zip file ahead of an S3 deploy, or our local filesystem
+    const destinationStream = this.destination.Bucket ? vzip.zip() : vfs.dest(this.destination.path);
 
     // Aggregate all source streams into tmpStream
     await Promise.all(
@@ -221,15 +281,17 @@ class WebProducer {
       )
     );
 
-    if (stage !== "dev") {
+    // Deployment steps here
+    if (this.destination.Bucket) {
+      console.log("WP:main.deploy");
       // The destinationStream has one more stream, S3, to write to
-      destinationStream.pipe(new vs3(this.aws));
-      await this._deploy(this.appId, this.stage, this.aws);
+      destinationStream.pipe(new vs3(this.destination));
+      await this._deploy(this.appId, this.stage, this.amplify);
     }
     // No more processing required so close everything down
     destinationStream.end();
 
-    console.log(`Elapsed time: ${new Date().getTime() - now}ms`);
+    console.timeEnd("WebProducer");
   }
 }
 

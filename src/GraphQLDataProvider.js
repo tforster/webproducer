@@ -45,7 +45,7 @@ class GraphQLDataProvider {
       }
     } catch (err) {
       console.error("GraphQLDataProvider.data error", err);
-      return err;
+      throw err;
     }
   }
 }
