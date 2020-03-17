@@ -12,17 +12,16 @@ const terser = require("gulp-terser");
 const vfs = require("vinyl-fs");
 
 // Project dependencies
-const Amplify = require("./Amplify");
 const GraphQLDataProvider = require("./GraphQLDataProvider");
 const Utils = require("./Utils");
-const HandlebarsHelper = require("./HandlebarsHelper");
 const vs3 = require("./Vinyl-s3");
+const vamplify = require("./Vinyl-Amplify");
+const VHandlebars = require("./Vinyl-Handlebars");
 const vzip = require("./Vinyl-zip");
 
 /**
  * Website and web-app agnostic class implementing a "build" process that merges handlebars templates with GraphQL data to produce
  * static output.
- * Note that the Lambda runtime filesystem is read-only with the exception of the /tmp directory..
  * @class WebProducer
  */
 class WebProducer {
@@ -34,23 +33,15 @@ class WebProducer {
   constructor(options) {
     // Set console.log and console.error functionality
     WebProducer._setLogging(options.logLevel);
+    this.options = options;
 
-    console.log("WebProducer.constructor:", options, process.env);
-    // Stage as in AWS Lambda definition of stage
-    this.stage = options.stage || "dev";
-
-    if (this.stage === "dev") {
-      // Force loggin on and write output to relative dist folder
-      WebProducer._setLogging("ALL");
-      console.log("Stage configured for development.");
+    // Check that a stage value was provided.
+    if (!this.options.stage) {
+      throw new Error("The stage is not defined");
     }
 
-    // Configure the templates source and destination objects (can be S3 or local filesystem or combo)
-    this.templateSource = this._vinylesque(options.templateSource);
+    //this.templateSource = this._vinylesque(options.templateSource);
     this.destination = this._vinylesque(options.destination);
-
-    // The templateCache is the actual pointer to the local filesystem to find the template files
-    this.templateCache = path.resolve(this.templateSource.Bucket ? "/tmp/src" : this.templateSource.path);
 
     // Optional user function to further shape data retrieved from CMS source
     this.transformFunction = options.transformFunction;
@@ -64,6 +55,8 @@ class WebProducer {
     this.appId = options.appId;
     // Determine whether to use draft or published data
     this.preview = options.preview;
+    // Initialise the Handlebars helper class
+    //this.hb = new HandlebarsHelper();
   }
 
   /**
@@ -78,7 +71,7 @@ class WebProducer {
     if (typeof metaData === "object") {
       // Assume an S3 object
       vinylesque = { ...metaData };
-      vinylesque.path = metaData.Key || "";
+      vinylesque.path = metaData.key || "";
     } else {
       // Assume a file path string
       vinylesque.path = path.resolve(metaData);
@@ -126,180 +119,157 @@ class WebProducer {
   }
 
   /**
-   * Wrapper around our module that fetches data from DatoCMS
-   * @memberof WebProducer
-   * @returns {Promise}:  Data from CMS
-   */
-  async _fetchData(queryPath, preview) {
-    const graphQLOptions = {
-      query: queryPath,
-      endpoint: "https://graphql.datocms.com/",
-      transform: this.transformFunction,
-      token: this.datoCMSToken,
-    };
-
-    // .data returns a Promise
-    try {
-      return await GraphQLDataProvider.data(graphQLOptions, preview);
-    } catch (err) {
-      console.error("_fetchData():", err);
-      throw err;
-    }
-  }
-
-  /**
-   * Wrapper around our Amplify module wrapper around AWS Amplify API for deploying
-   * @param {string} appId: The AWS Amplify application Id
-   * @param {string} stage: The Lambda-like stage (one of dev, stage or prod)
-   * @param {object} aws:   AWS properties including bucket, key and region
-   * @returns {Promise}:    Status as a string
-   * @memberof WebProducer
-   */
-  async _deploy(appId, stage, amplify) {
-    return Amplify.deploy({
-      appId,
-      stage,
-      // Note that Amplify is not available in all regions yet, including ca-central-1. Force to us-east-1 for now.
-      aws: { Bucket: amplify.Bucket, key: amplify.key, bucketRegion: amplify.region, amplifyRegion: "us-east-1" },
-    });
-  }
-
-  async _fetchTemplatesFromS3() {
-    console.time("Fetch templates from S3");
-    return new Promise(async (resolve, reject) => {
-      // Empty the temporary directory first
-      await Utils.emptyDirectories(this.templateCache);
-
-      // Create a VinylS3 stream
-      const s3Stream = new vs3(this.templateSource);
-      s3Stream.on("end", () => resolve());
-      // Start piping
-      s3Stream.pipe(vfs.dest(this.templateCache)).on("finish", () => {
-        console.timeEnd("Fetch templates from S3", "DONE");
-      });
-    });
-  }
-
-  /**
    * Entry point into WebProducer
    * @memberof WebProducer
    */
   async main() {
-    console.time("WebProducer", "start");
+    console.time("profile");
+    console.timeLog("profile", "starting");
+    const options = this.options;
+    const vhandlebars = new VHandlebars();
 
-    // Do some filesystem preparation
-    // | property    | offline | online |
-    // |-------------|---------|--------|
-    // | local       | true    |        |
-    // | aws         |         | true   |
-    // | s3-source   | true    | true   |
-    // | s3-dest     | true    | true   |
-    // | file-source | true    | false  |
-    // | file-dest   | true    | false  |
-
-    // If templateSource has a Bucket property then it describes a remote S3 bucket and we need to get its contents locally
-    if (this.templateSource.Bucket) {
-      console.log("hello world");
-      console.timeLog("WebProducer", "in s3");
-      await this._fetchTemplatesFromS3();
-    }
-    console.timeLog("WebProducer", "out s3");
-    if (this.destination.Bucket) {
+    // Clear the destination ready to receive new files. We do not currently support synchronisation or merging to destination.
+    if (options.destination.Bucket) {
+      // Destination variable references an S3 bucket
       // ToDo: Consider a way of emptying or synchronising destination buckets
     } else {
-      // Destination is a filesytem so empty the destination subdirectory
-      await Utils.emptyDirectories(this.destination.path);
+      // Destination variable references a filesystem path
+      await Utils.emptyDirectories(options.destination);
     }
 
-    // Initialise the Handlebars helper class
-    const hb = new HandlebarsHelper();
-
-    // The following two activities can run in parallel but we ONLY NEED siteData at resolution
-    const [siteData] = await Promise.all([
-      // Fetch data from DatoCMS (GraphQL)
-      this._fetchData(path.join(this.templateCache, "db/query.graphql"), this.preview),
-      // Precompile all the handlebars files in src/theme
-      hb.precompile([path.join(this.templateCache, "theme/organisms"), path.join(this.templateCache, "theme/templates")]),
-    ]).catch((reason) => {
-      console.error("WP:Main.sitedata", reason);
-      throw reason;
-    });
-
-    if (!siteData || siteData === {}) {
-      throw new Error("No data provided");
+    // Point the source stream to either S3 (vs3) or the local filesystem (vfs)
+    // ToDo: Refactor Vinyl-S3 to use the factory pattern so we don't have to re-instance it. Then it can be used interchangeably with vfs.
+    if (options.templateSource.Bucket) {
+      // Stream from AWS S3
+      //var sourceStream = new vs3(options.templateSource);
+      var sourceStream = new vs3(options.templateSource);
+      var tempPrefix = options.stage;
+    } else {
+      // Stream from the local filesystem
+      var sourceStream = vfs; //.dest(options.templateSource);
+      var tempPrefix = options.templateSource;
     }
 
-    // Generate pages by combining the templates precompiled above and the data, also fetched above
-    const pages = await hb.build(siteData);
+    console.timeLog("profile", "before data");
 
-    // Certain directories in src will require pre-processing and should not be copied to the destination raw
-    const blackList = [
-      `!${path.join(this.templateCache, "db/**")}`,
-      `!${path.join(this.templateCache, "scripts/**")}`,
-      `!${path.join(this.templateCache, "stylesheets/**")}`,
-      `!${path.join(this.templateCache, "theme/**")}`,
-    ];
+    try {
+      // Parallelise fetching data from API, precompiling templates and all from async stream reading
+      var [siteData, _] = await Promise.all([
+        await GraphQLDataProvider.data(sourceStream.src([`${tempPrefix}/db/**/*`]), options),
+        vhandlebars.precompile(sourceStream.src(`${tempPrefix}/theme/**/*.hbs`)),
+      ]);
+      // Quick check to ensure we have actual data to work with
+      if (!siteData || Object.entries(siteData).length === 0) {
+        throw new Error("No data provided");
+      }
+    } catch (err) {
+      console.error(err);
+      throw err;
+    }
+    console.timeLog("profile", "after data");
 
-    // Create an array of stream reader sources to eventually pass to a single stream writer
-    const streams = [
-      // Copy all of the src tree, minus black listed globs
-      vfs.src([path.join(this.templateCache, "**/*.*"), ...blackList]),
-      // Copy scripts after first minifying them
-      vfs
-        .src(path.join(this.templateCache, "scripts/**/*.js"))
-        .pipe(sourcemaps.init())
+    // Promise.all above resolved with data and precompiled templates from different sources so now we can generate pages.
+    const pages = await vhandlebars.build(siteData);
+    console.timeLog("profile", "after build");
+
+    // ToDo: vs3 below should become a variable that can point to either vfs or vs3
+    // e.g. const stream = vs3(options.templateSource) || vfs(options.templateSource)
+
+    const streamsToMerge = [
+      // Add all files to the stream other than those in folders we are specifically interacting with
+      sourceStream.src(
+        [
+          `${tempPrefix}/**/*.*`,
+          `!${tempPrefix}/db/**`,
+          `!${tempPrefix}/scripts/**`,
+          `!${tempPrefix}/stylesheets/**`,
+          `!${tempPrefix}/theme/**`,
+        ],
+        "stage/"
+      ),
+      // Minify JavaScript files and add to the stream
+      sourceStream
+        .src(`${tempPrefix}/scripts/**/*.js`, "stage/scripts/")
         .pipe(terser())
         .pipe(sourcemaps.write("/")),
-      // Copy css files after first minifying them
-      vfs
-        .src(path.join(this.templateCache, "stylesheets/**/*.css"))
+      // Minify CSS files and add to the stream
+      sourceStream
+        .src(`${tempPrefix}/stylesheets/**/*.css`, "stage/stylesheets/")
         .pipe(sourcemaps.init())
         .pipe(cleanCSS())
         .pipe(sourcemaps.write("/")),
-      // Copy pages after first minifying them
+      // Minify HTML files and add to the stream
       pages.stream.pipe(minifyHtml({ collapseWhitespace: true, removeComments: true })),
     ];
-
+    console.timeLog("profile", "after merge");
     // determine whether to pipe to a zip file ahead of an S3 deploy, or our local filesystem
-    const destinationStream = this.destination.Bucket ? vzip.zip() : vfs.dest(this.destination.path);
+    const destinationType = this.destination.Bucket ? "remote" : "local";
 
-    // Aggregate all source streams into tmpStream
+    if (destinationType === "local") {
+      var destinationStream = vfs.dest(options.destination);
+    } else {
+      var destinationStream = new vs3(options.destination).dest(options.destination.Bucket);
+    }
+
+    //const destinationStream = vamplify.dest(options);
+
+    // // Add a finish handler
+    destinationStream.on("finish", async () => {
+      console.timeLog("profile", "after destination stream finish");
+      console.log("Distribution finished");
+
+      if (options.amplifyDeploy) {
+        // Call the Amplify deploy endpoint which is API asynchnronous!
+        // ToDo: Determine how to follow deploy progress and report back to here. Currently deploy is fire-and-forget!!
+        await vamplify.deploy(
+          {
+            appId: options.appId,
+            stage: options.stage,
+            // Note that Amplify is not available in all regions yet, including ca-central-1. Force to us-east-1 for now.
+            aws: {
+              Bucket: options.amplifyDeploy.Bucket,
+              key: options.amplifyDeploy.key,
+              bucketRegion: options.amplifyDeploy.region,
+              amplifyRegion: "us-east-1",
+            },
+          },
+          destinationStream
+        );
+        console.log("Amplify startDeployment finished.");
+      }
+    });
+
+    // Aggregate all source streams into the destination stream, with optional intermediate zipping
     await Promise.all(
-      // Promisify each vfs readable stream
-      streams.map(
+      streamsToMerge.map(
+        // Promisify each vfs readable stream
         async (source) =>
           new Promise((resolve, reject) => {
             // Set success and failure handlers
             source.on("end", () => {
               resolve();
             });
+
+            // Set failure handlers
             source.on("error", (err) => {
-              console.error(err);
+              console.error("MERGE:", err);
               reject(err);
             });
-            // Start piping using {end: false} to ensure the writeable stream remains open for the next readable stream
-            source.pipe(destinationStream, { end: false });
+
+            // Account for possible zipping of contents
+            if (options.archiveDestination) {
+              // Merge streams into a zip file before piping to the destination
+              source.pipe(vzip.zip()).pipe(destinationStream, { end: false });
+            } else {
+              // Merge streams directly to the destination
+              source.pipe(destinationStream, { end: false });
+            }
           })
       )
     );
-
-    // Deployment steps here
-    if (this.destination.Bucket) {
-      console.log("WP:main.deploy");
-      // The destinationStream has one more stream, S3, to write to
-      destinationStream.pipe(new vs3(this.destination));
-      //await this._deploy(this.appId, this.stage, this.amplify);
-      await Amplify.deploy({
-        appId: this.appId,
-        stage: this.stage,
-        // Note that Amplify is not available in all regions yet, including ca-central-1. Force to us-east-1 for now.
-        aws: { Bucket: this.amplify.Bucket, key: this.amplify.key, bucketRegion: this.amplify.region, amplifyRegion: "us-east-1" },
-      });
-    }
-    // No more processing required so close everything down
+    console.timeLog("profile", "after PRomise all");
+    // // All Promises have been fulfilled so now we can end() the stream
     destinationStream.end();
-
-    console.timeEnd("WebProducer");
   }
 }
 
