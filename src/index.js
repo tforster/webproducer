@@ -2,6 +2,7 @@
 ("use strict");
 
 // System dependencies (Built in modules)
+const { finished } = require("stream");
 const path = require("path");
 
 // Third party dependencies (Typically found in public NPM packages)
@@ -123,8 +124,6 @@ class WebProducer {
    * @memberof WebProducer
    */
   async main() {
-    console.time("profile");
-    console.timeLog("profile", "starting");
     const options = this.options;
     const vhandlebars = new VHandlebars();
 
@@ -150,7 +149,7 @@ class WebProducer {
       var tempPrefix = options.templateSource;
     }
 
-    console.timeLog("profile", "before data");
+    console.log("profile", "before data");
 
     try {
       // Parallelise fetching data from API, precompiling templates and all from async stream reading
@@ -166,11 +165,11 @@ class WebProducer {
       console.error(err);
       throw err;
     }
-    console.timeLog("profile", "after data");
+    console.log("profile", "after data");
 
     // Promise.all above resolved with data and precompiled templates from different sources so now we can generate pages.
     const pages = await vhandlebars.build(siteData);
-    console.timeLog("profile", "after build");
+    console.log("profile", "after build");
 
     // ToDo: vs3 below should become a variable that can point to either vfs or vs3
     // e.g. const stream = vs3(options.templateSource) || vfs(options.templateSource)
@@ -201,52 +200,23 @@ class WebProducer {
       // Minify HTML files and add to the stream
       pages.stream.pipe(minifyHtml({ collapseWhitespace: true, removeComments: true })),
     ];
-    console.timeLog("profile", "after merge");
-    // determine whether to pipe to a zip file ahead of an S3 deploy, or our local filesystem
-    const destinationType = this.destination.Bucket ? "remote" : "local";
 
-    if (destinationType === "local") {
-      var destinationStream = vfs.dest(options.destination);
-    } else {
-      var destinationStream = new vs3(options.destination).dest(options.destination.Bucket);
-    }
+    console.log("profile", "after merge");
 
-    //const destinationStream = vamplify.dest(options);
-
-    // // Add a finish handler
-    destinationStream.on("finish", async () => {
-      console.timeLog("profile", "after destination stream finish");
-      console.log("Distribution finished");
-
-      if (options.amplifyDeploy) {
-        // Call the Amplify deploy endpoint which is API asynchnronous!
-        // ToDo: Determine how to follow deploy progress and report back to here. Currently deploy is fire-and-forget!!
-        await vamplify.deploy(
-          {
-            appId: options.appId,
-            stage: options.stage,
-            // Note that Amplify is not available in all regions yet, including ca-central-1. Force to us-east-1 for now.
-            aws: {
-              Bucket: options.amplifyDeploy.Bucket,
-              key: options.amplifyDeploy.key,
-              bucketRegion: options.amplifyDeploy.region,
-              amplifyRegion: "us-east-1",
-            },
-          },
-          destinationStream
-        );
-        console.log("Amplify startDeployment finished.");
-      }
-    });
+    // Set the destinationStream to either a VinylFS or Vinyl-S3 stream
+    const destinationStream = this.destination.Bucket
+      ? new vs3(options.destination).dest(options.destination.Bucket)
+      : vfs.dest(options.destination);
 
     // Aggregate all source streams into the destination stream, with optional intermediate zipping
     await Promise.all(
       streamsToMerge.map(
-        // Promisify each vfs readable stream
+        // Promisify each Readable Vinyl stream
         async (source) =>
           new Promise((resolve, reject) => {
             // Set success and failure handlers
             source.on("end", () => {
+              console.log("profile", "merge ended");
               resolve();
             });
 
@@ -267,9 +237,35 @@ class WebProducer {
           })
       )
     );
-    console.timeLog("profile", "after PRomise all");
-    // // All Promises have been fulfilled so now we can end() the stream
-    destinationStream.end();
+
+    finished(destinationStream, (err) => {
+      if (err) {
+        console.error("destinationStream errored:", err);
+      }
+    });
+
+    // Should we also deploy to Amplify?
+    if (options.amplifyDeploy) {
+      console.log("profile", "amplifyDeploy starting");
+      // Call the Amplify deploy endpoint which is API asynchnronous!
+      // ToDo: Determine how to follow deploy progress and report back to here. Currently deploy is fire-and-forget!!
+      const deployDetails = await vamplify.deploy(
+        {
+          appId: options.appId,
+          stage: options.stage,
+          // Note that Amplify is not available in all regions yet, including ca-central-1. Force to us-east-1 for now.
+          aws: {
+            Bucket: options.amplifyDeploy.Bucket,
+            key: options.amplifyDeploy.key,
+            bucketRegion: options.amplifyDeploy.region,
+            amplifyRegion: "us-east-1",
+          },
+        },
+        destinationStream
+      );
+
+      console.log("Amplify deployment job:", deployDetails);
+    }
   }
 }
 
