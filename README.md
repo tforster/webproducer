@@ -108,6 +108,12 @@ The following is a list of the technologies used to develop and manage this proj
 
 ## Change Log
 
+v0.1.6 **Improve stream stability** (2020-03-26)
+
+Bug fixes
+
+- [418](https://dev.azure.com/geekhacks/Web%20Producer/_boards/board/t/Web%20Producer%20Team/Backlog%20items/?workitem=418)
+
 v0.0.1 **Bug fixes in concert with YMWA** (2020-02-19)
 
 Numerous minor issues were resolved after using WebProducer in a first run with Your Mental Wealth Advisors website.

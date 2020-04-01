@@ -25,13 +25,11 @@ class VinylS3 {
     this.s3 = new AWS.S3({ region: options.region });
   }
 
-
-  src(globs, relativePath){
+  src(globs, relativePath) {
     const self = new VinylS3(this.options);
-    self.keys=null;
+    self.keys = null;
     return self._src(globs, relativePath);
   }
-
 
   /**
    * Stream Vinyl files FROM an S3 bucket
@@ -47,9 +45,9 @@ class VinylS3 {
     // If present, is the relativePath segment to remove
     self.relativePath = relativePath;
 
-    const readable = new Readable({ objectMode: true,highWaterMark:64 });
+    const readable = new Readable({ objectMode: true, highWaterMark: 64 });
 
-    readable._read = async function () {
+    readable._read = async function() {
       if (!self.keys) {
         // First time here, let's seed the keys array with data from S3 source
         try {
@@ -132,7 +130,7 @@ class VinylS3 {
 
     this.writable = this.writable || new Writable({ objectMode: true });
 
-    this.writable._write = function (file, _, done) {
+    this.writable._write = function(file, _, done) {
       const params = {
         Bucket: options.Bucket,
         Key: options.key || file.basename,
