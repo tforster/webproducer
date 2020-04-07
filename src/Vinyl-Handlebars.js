@@ -12,7 +12,6 @@ const Vinyl = require("vinyl");
 
 // ToDo: Make paths an object with a templates and partials key, so that we can more efficiently split up on line 28
 
-
 /**
  * Implements Vinyl files around Handlebars generated content
  *
@@ -27,7 +26,6 @@ class VinylHandlebars {
     this.handlebars = {};
   }
 
-
   /**
    * Precompiles the .hbs files found in sourceStream into an instance property
    *
@@ -41,7 +39,7 @@ class VinylHandlebars {
 
       const writable = new Writable({
         objectMode: true,
-        highWaterMark:64
+        highWaterMark: 64,
       });
 
       writable._write = function(file, _, done) {
@@ -66,7 +64,6 @@ class VinylHandlebars {
     });
   }
 
-
   /**
    * Merges precompiled .hbs templates with data to generate a Readable stream of generated .html
    * ToDo: Switch from Through2 to native Readable stream
@@ -87,18 +84,20 @@ class VinylHandlebars {
     // Iterate all available data elements (note: one per "page")
     for (const key in data) {
       // Isolate the current data element
+      //key = key.trim();
       const fields = data[key];
 
       // Only attempt to build a page if the fields data contains a reference to the physical ebs file to use
-      if (fields._modelApiKey && templates[`${fields._modelApiKey}.hbs`]) {
+      if (fields && fields._modelApiKey && templates[`${fields._modelApiKey}.hbs`]) {
         // Merge the data element with the template indicated in the data elements _modelApiKey property (required)
         const result = templates[`${fields._modelApiKey}.hbs`](fields);
-        // Calculate the full relative path to the output file
-        const filePath = path.join(key);
 
-        const vf = new Vinyl({ path: key.slice(1), contents: Buffer.from(result) });
+        // key.trim() required to cleanup any spaces that sometimes get added by the content editor
+        const vf = new Vinyl({ path: key.trim().slice(1), contents: Buffer.from(result) });
         stream.write(vf);
         pages++;
+      } else {
+        console.error(`Missing _modelApiKey for >${key}<`);
       }
     }
     stream.end();
