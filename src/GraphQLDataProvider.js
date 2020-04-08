@@ -25,7 +25,7 @@ class GraphQLDataProvider {
     // Construct the URL for preview vs published. GraphQL endpoint of "/" = published, "/preview" includes drafts
     const url = new URL(options.endpoint);
     // Default preview to false to prevent accidental leakage of unpublished content
-    options.preview = options.prevew || false;
+    options.preview = options.preview || false;
     if (options.preview) {
       url.pathname = "preview";
     }
