@@ -44,8 +44,6 @@ class WebProducer {
     //this.templateSource = this._vinylesque(options.templateSource);
     this.destination = this._vinylesque(options.destination);
 
-    // Optional user function to further shape data retrieved from CMS source
-    this.transformFunction = options.transformFunction;
     // Name of S3 bucket to upload this.dist contents to
     this.amplify = options.amplify;
     // Additional AWS options, including ./aws/credentials profile
