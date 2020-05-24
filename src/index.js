@@ -2,30 +2,27 @@
 ("use strict");
 
 // System dependencies (Built in modules)
-const fs = require("fs").promises;
+const { finished } = require("stream");
 const path = require("path");
 
 // Third party dependencies (Typically found in public NPM packages)
-const minifyCss = require("gulp-minify-css");
+const cleanCSS = require("gulp-clean-css");
 const minifyHtml = require("gulp-htmlmin");
-const minifyJs = require("gulp-terser");
-const rev = require("gulp-rev");
-const usemin = require("gulp-usemin");
+const sourcemaps = require("gulp-sourcemaps");
+const terser = require("gulp-terser");
 const vfs = require("vinyl-fs");
 
 // Project dependencies
-const Amplify = require("./Amplify");
 const GraphQLDataProvider = require("./GraphQLDataProvider");
 const Utils = require("./Utils");
-const Handlebars = require("./HandlebarsHelper");
 const vs3 = require("./Vinyl-s3");
-const vsitemap = require("./Vinyl-sitemap");
+const vamplify = require("./Vinyl-Amplify");
+const VHandlebars = require("./Vinyl-Handlebars");
 const vzip = require("./Vinyl-zip");
 
 /**
  * Website and web-app agnostic class implementing a "build" process that merges handlebars templates with GraphQL data to produce
  * static output.
- * Note that the Lambda runtime filesystem is read-only with the exception of the /tmp directory..
  * @class WebProducer
  */
 class WebProducer {
@@ -35,194 +32,238 @@ class WebProducer {
    * @memberof WebProducer
    */
   constructor(options) {
-    // Stage as in AWS Lambda definition of stage
-    this.stage = options.stage || "dev";
+    // Set console.log and console.error functionality
+    WebProducer._setLogging(options.logLevel);
+    this.options = options;
 
-    // In AWS environment Lambda functions are re-entrant (aka warm start) so we need a suffix to support multiple instances
-    const t = new Date().getMilliseconds();
+    // Check that a stage value was provided.
+    if (!this.options.stage) {
+      throw new Error("The stage is not defined");
+    }
 
-    // Construct output paths. Un supplied tmpDirectory requires additional timestamp suffix for uniqueness
-    this.build = options.tmpDirectory ? path.resolve(`${options.tmpDirectory}/build`) : `/tmp/build-${t}`;
-    this.dest = options.tmpDirectory ? path.resolve(`${options.tmpDirectory}/dist`) : `/tmp/dist-${t}`;
+    //this.templateSource = this._vinylesque(options.templateSource);
+    this.destination = this._vinylesque(options.destination);
 
-    // Optional user function to further shape data retrieved from CMS source
-    this.transformFunction = options.transformFunction;
     // Name of S3 bucket to upload this.dist contents to
-    this.amplifyBucket = options.amplifyBucket;
+    this.amplify = options.amplify;
     // Additional AWS options, including ./aws/credentials profile
     this.aws = options.aws;
     // READ-ONLY token to access CMS
     this.datoCMSToken = options.datoCMSToken;
     // Amplify appId
     this.appId = options.appId;
-    this.cache = this.cache || { cache: {} };
+    // Determine whether to use draft or published data
+    this.preview = options.preview;
+    // Initialise the Handlebars helper class
+    //this.hb = new HandlebarsHelper();
   }
 
   /**
-   * Copies static files and folders, including images, scripts, css, etc, from resources to root of dist.
-   * @memberof WebProducer
-   * @returns {Promise string}:    Text status
-   */
-  _copyResources(dest) {
-    return new Promise((resolve, reject) => {
-      vfs
-        .src(`./resources/**/*.*`)
-        .on("error", (err) => reject(err))
-        .on("end", function() {
-          resolve("resources copied");
-        })
-        .pipe(vfs.dest(dest));
-    });
-  }
-
-  /**
-   * Minifies and concatenates HTML, CSS and JavaScript. Also cache busts the minified CSS and JS files before creating and
-   * uploading a zip file to AWS S3.
-   * @memberof WebProducer
-   * @returns {Promise}:  Status as a string
-   */
-  async _createDistribution() {
-    const fnStart = new Date();
-    const aws = this.aws;
-
-    return new Promise((resolve, reject) => {
-      vfs
-        .src(`${this.build}/**/*.html`)
-        .on("error", (e) => reject())
-        .pipe(
-          usemin({
-            path: this.build,
-            outputRelativePath: ".",
-            css: [() => minifyCss(), () => rev()],
-            html: [() => minifyHtml({ collapseWhitespace: true, removeComments: true })],
-            js: [() => minifyJs(), () => rev()],
-          })
-        )
-        .pipe(vzip.zip("archive.zip"))
-        .pipe(vs3.dest(null, { aws: { bucket: aws.bucket, key: aws.key, region: aws.region } }))
-        .on("finish", () => resolve(`Distribution created and uploaded to S3 in ${new Date() - fnStart}ms`));
-    });
-  }
-
-  /**
-   * Wrapper around our module that fetches data from DatoCMS
-   * @memberof WebProducer
-   * @returns {Promise}:  Data from CMS
-   */
-  async _fetchData() {
-    const graphQLOptions = {
-      query: "./db/query.graphql",
-      endpoint: "https://graphql.datocms.com/",
-      transform: this.transformFunction,
-      token: this.datoCMSToken,
-    };
-
-    // .data returns a Promise
-    return GraphQLDataProvider.data(graphQLOptions);
-  }
-
-  /**
-   * Wrapper around our Handlebars module wrapper to pre-compile templates
-   * @returns {Promise}:  An instance of Handlebars with .partials and .templates populated
+   * Parses the supplied metaData string into a Vinyl-like structure that can be used with the Vinyl constructor later
+   * @param {string} metaData:  An S3 URL, or an absolute path, or a relative path
+   * @returns:                  A lean object that can be used in a Vinyl file constructor with additional properties
    * @memberof WebProducer
    */
-  async _compileTemplates(pathsArray) {
-    return Handlebars.precompile(pathsArray);
-  }
+  _vinylesque(metaData) {
+    let vinylesque = {};
 
-  /**
-   * Wrapper around our empty directory utility method
-   * @returns {Promise}:  Currently null/undefined
-   * @memberof WebProducer
-   */
-  async _emptyDirectories() {
-    return Utils.emptyDirectories([this.build, this.dest]);
-  }
-
-  /**
-   * Combines data with templates to produce HTML, XML and RSS files
-   * @param {object} data:      Monolithic (currently) structure containing all data required by all templates
-   * @param {object} templates: Previously compiled Handlebars templates
-   * @returns {Promise}:        Status as a string
-   * @memberof WebProducer
-   */
-  async _buildPages(data, templates) {
-    // Iterate all available data elements (note: one per "page")
-    for (const key in data) {
-      // Isolate the current data element
-      const fields = data[key];
-      // Merge the data element with the template indicated in the data elements _modelApiKey property (required)
-      const result = templates[`${fields._modelApiKey}.hbs`](fields);
-      // Calculate the full relative path to the output file
-      const filePath = path.join(this.build, key);
-      // Ensure the calculated path exists by force creating it. Nb: Cheaper to force it each time than to cycle through {fs.exists, then, fs.mkdir}
-      await fs.mkdir(path.parse(filePath).dir, { recursive: true });
-      // Write the result to the filesystem at the filePath
-      await fs.writeFile(filePath, result, { encoding: "utf8" });
+    if (typeof metaData === "object") {
+      // Assume an S3 object
+      vinylesque = { ...metaData };
+      vinylesque.path = metaData.key || "";
+    } else {
+      // Assume a file path string
+      vinylesque.path = path.resolve(metaData);
     }
-    // Return a Promise of the status
-    return Promise.resolve("pages built");
+    // Calculate the Vinyl base.
+    // ToDo: Determine if this is needed when we create legit Vinyl file
+    vinylesque.base = path.dirname(vinylesque.path);
+
+    // Use RegEx to determine if last path segment is a filename (at least one "." must be present)
+    const matches = vinylesque.path.match(/\/[^.^\/]*$/g);
+    if (matches) {
+      // Is a directory
+      vinylesque.stat = { mode: 16384 };
+    } else {
+      // Is a file
+      vinylesque.stat = { mode: 32768 };
+      vinylesque.filename = path.basename(vinylesque.path);
+    }
+
+    return vinylesque;
   }
 
   /**
-   * Wrapper around our Amplify module wrapper around AWS Amplify API for deploying
-   * @param {string} appId: The AWS Amplify application Id
-   * @param {string} stage: The Lambda-like stage (one of dev, stage or prod)
-   * @param {object} aws:   AWS properties including bucket, key and region
-   * @returns {Promise}:    Status as a string
+   * Takes advantage of the global nature of console methods to manage logging verbosity to CloudWatch (receiver of stdOut and stdErr)
+   * @static
+   * @param {*} logLevel
    * @memberof WebProducer
    */
-  async _deploy(appId, stage, aws) {
-    return Amplify.deploy({
-      appId,
-      stage,
-      // Note that Amplify is not available in all regions yet, including ca-central-1. Force to us-east-1 for now.
-      aws: { bucket: aws.bucket, key: aws.key, bucketRegion: aws.region, amplifyRegion: "us-east-1" },
-    });
+  static _setLogging(logLevel) {
+    // Prevent WP from writing to stdOut, stdErr, etc as it is a blocking synchronous operation and also fills up CloudWatch
+    const verbosity = (logLevel || "none").toLowerCase();
+    switch (verbosity) {
+      case "all":
+        // Show logs and errors
+        break;
+      case "errors":
+        // Show errors
+        console.log = () => {};
+        break;
+      default:
+        // Show nothing
+        console.error = () => {};
+        console.log = () => {};
+    }
   }
 
   /**
+   * Entry point into WebProducer
    * @memberof WebProducer
    */
   async main() {
-    const start = new Date();
-    const stage = this.stage;
+    const options = this.options;
+    const vhandlebars = new VHandlebars();
 
-    // 1. Await the preparation of the environment, fetch data and initialise handlebars
-    const [emptyDirectories, siteData, handlebars] = await Promise.all([
-      this._emptyDirectories(),
-      this._fetchData(),
-      this._compileTemplates(["./theme/organisms", "./theme/templates"]),
-    ]).catch((reason) => {
-      console.error(reason);
-    });
-
-    // await this._copyResources(this.build);
-    // console.log("copieD");
-
-    // 2. Await the creation and copying of files to the build directory
-    const [buildCopied, pagesBuilt] = await Promise.all([
-      // The build process needs access to .js and .css
-      this._copyResources(this.build),
-      // The distribution process needs access to all the files
-      //this._copyResources(this.dest),
-      this._buildPages(siteData, handlebars.templates),
-    ]).catch((reason) => {
-      console.error("in 2", reason);
-    });
-
-    // Both stage and prod require a distribution of minified and concatenated resources be built and placed in dist and S3
-    if (stage === "stage" || stage === "prod") {
-      const distributed = await this._createDistribution();
+    // Clear the destination ready to receive new files. We do not currently support synchronisation or merging to destination.
+    if (options.destination.Bucket) {
+      // Destination variable references an S3 bucket
+      // ToDo: Consider a way of emptying or synchronising destination buckets
+    } else {
+      // Destination variable references a filesystem path
+      await Utils.emptyDirectories(options.destination);
     }
 
-    // Prod requires S3://...archive.zip be deployed to Amplify
-    // Currently allowing both stage and prod to go to Amplify. ToDo: Should we allow for a local or S3 hosted stage instead of AWS?
-    if (stage === "stage" || stage == "prod") {
-      const deployed = await this._deploy(this.appId, this.stage, this.aws);
+    // Point the source stream to either S3 (vs3) or the local filesystem (vfs)
+    // ToDo: Refactor Vinyl-S3 to use the factory pattern so we don't have to re-instance it. Then it can be used interchangeably with vfs.
+    if (options.templateSource.Bucket) {
+      // Stream from AWS S3
+      //var sourceStream = new vs3(options.templateSource);
+      var sourceStream = new vs3(options.templateSource);
+      var tempPrefix = options.stage;
+    } else {
+      // Stream from the local filesystem
+      var sourceStream = vfs; //.dest(options.templateSource);
+      var tempPrefix = options.templateSource;
     }
 
-    console.log(`Elapsed time: ${new Date() - start}ms`);
+    console.log("profile", "before data");
+
+    try {
+      // Parallelise fetching data from API, precompiling templates and all from async stream reading
+      var [siteData, _] = await Promise.all([
+        await GraphQLDataProvider.data(sourceStream.src([`${tempPrefix}/db/**/*`]), options),
+        vhandlebars.precompile(sourceStream.src(`${tempPrefix}/theme/**/*.hbs`)),
+      ]);
+      // Quick check to ensure we have actual data to work with
+      if (!siteData || Object.entries(siteData).length === 0) {
+        throw new Error("No data provided");
+      }
+    } catch (err) {
+      console.error(err);
+      throw err;
+    }
+    console.log("profile", "after data");
+
+    // Promise.all above resolved with data and precompiled templates from different sources so now we can generate pages.
+    const pages = await vhandlebars.build(siteData);
+    console.log("profile", "after build");
+
+    // ToDo: vs3 below should become a variable that can point to either vfs or vs3
+    // e.g. const stream = vs3(options.templateSource) || vfs(options.templateSource)
+
+    const streamsToMerge = [
+      // Add all files to the stream other than those in folders we are specifically interacting with
+      sourceStream.src(
+        [
+          `${tempPrefix}/**/*.*`,
+          `!${tempPrefix}/db/**`,
+          `!${tempPrefix}/scripts/**`,
+          `!${tempPrefix}/stylesheets/**`,
+          `!${tempPrefix}/theme/**`,
+        ],
+        "stage/"
+      ),
+      // Minify JavaScript files and add to the stream
+      sourceStream
+        .src(`${tempPrefix}/scripts/**/*.js`, "stage/scripts/")
+        .pipe(terser())
+        .pipe(sourcemaps.write("/")),
+      // Minify CSS files and add to the stream
+      sourceStream
+        .src(`${tempPrefix}/stylesheets/**/*.css`, "stage/stylesheets/")
+        .pipe(sourcemaps.init())
+        .pipe(cleanCSS())
+        .pipe(sourcemaps.write("/")),
+      // Minify HTML files and add to the stream
+      pages.stream.pipe(minifyHtml({ collapseWhitespace: true, removeComments: true })),
+    ];
+
+    console.log("profile", "after merge");
+
+    // Set the destinationStream to either a VinylFS or Vinyl-S3 stream
+    const destinationStream = this.destination.Bucket
+      ? new vs3(options.destination).dest(options.destination.Bucket)
+      : vfs.dest(options.destination);
+
+    // Aggregate all source streams into the destination stream, with optional intermediate zipping
+    await Promise.all(
+      streamsToMerge.map(
+        // Promisify each Readable Vinyl stream
+        async (source) =>
+          new Promise((resolve, reject) => {
+            // Set success and failure handlers
+            source.on("end", () => {
+              console.log("profile", "merge ended");
+              resolve();
+            });
+
+            // Set failure handlers
+            source.on("error", (err) => {
+              console.error("MERGE:", err);
+              reject(err);
+            });
+
+            // Account for possible zipping of contents
+            if (options.archiveDestination) {
+              // Merge streams into a zip file before piping to the destination
+              source.pipe(vzip.zip()).pipe(destinationStream, { end: false });
+            } else {
+              // Merge streams directly to the destination
+              source.pipe(destinationStream, { end: false });
+            }
+          })
+      )
+    );
+
+    finished(destinationStream, (err) => {
+      if (err) {
+        console.error("destinationStream errored:", err);
+      }
+    });
+
+    // Should we also deploy to Amplify?
+    if (options.amplifyDeploy) {
+      console.log("profile", "amplifyDeploy starting");
+      // Call the Amplify deploy endpoint which is API asynchnronous!
+      // ToDo: Determine how to follow deploy progress and report back to here. Currently deploy is fire-and-forget!!
+      const deployDetails = await vamplify.deploy(
+        {
+          appId: options.appId,
+          stage: options.stage,
+          // Note that Amplify is not available in all regions yet, including ca-central-1. Force to us-east-1 for now.
+          aws: {
+            Bucket: options.amplifyDeploy.Bucket,
+            key: options.amplifyDeploy.key,
+            bucketRegion: options.amplifyDeploy.region,
+            amplifyRegion: "us-east-1",
+          },
+        },
+        destinationStream
+      );
+
+      console.log("Amplify deployment job:", deployDetails);
+    }
   }
 }
 

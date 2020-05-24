@@ -4,6 +4,8 @@ dist
 .vscode
 .env
 .serverless
+stack
+test
 
 ### Misc. Tooling ###
 

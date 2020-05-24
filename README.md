@@ -1,5 +1,7 @@
 # WebProducer
 
+[![Board Status](https://dev.azure.com/techsmarts/08c518d9-553e-44a6-bd93-33b1b4b46b5c/94878bf3-1784-4a48-9a4a-e692d65425ba/_apis/work/boardbadge/e05cc4cb-70d4-4fcf-be68-9c1a6cb5cf69?columnOptions=1)](https://dev.azure.com/techsmarts/08c518d9-553e-44a6-bd93-33b1b4b46b5c/_boards/board/t/94878bf3-1784-4a48-9a4a-e692d65425ba/Microsoft.RequirementCategory/)
+
 WebProducer, or simply WP, is a serverless application for publishing content to the web. It equally supports websites and web applications with a lean, streams based, architecture.
 
 The current version is dependent upon the Amazon AWS stack, including Amplify, IAM, Lambda and S3. Support for other providers including Google and Microsoft is planned for the future.
@@ -18,100 +20,89 @@ The core of the module is a NodeJS Lambda function. This function is intended to
 
 ## Installation
 
-WebProducer can be installed as a runtime dependency using your favourite package manager.
+WebProducer can be installed as a runtime dependency by adding to your package.json
 
 ```bash
-# NPM
-npm i -S @tforster/webproducer
-
-# Yarn
-yarn ?
+  ...
+  "dependencies": {
+    "@tforster/webproducer": "git+ssh://git@github.com/tforster/webproducer.git",
+    ...
+  },
+  ...
 ```
 
-Once installed simply initialise an instance via the constructor, passing in some options then call the build() method.
+## Usage
+
+1. Install required dependencies with `npm i`
+1. Create config.js and .env files
 
 ```javascript
-const WP = require("webproducer);
+// config.js
 
-const options = {
-  transformFunction: function(data) { ... },
-  stage: "dev",
-  local: true, // true to run in a local development environment or false to run in AWS Lambda environment
-  datoCMSToken: process.env["DATOCMS_TOKEN"],
-  amplifyBucket: "{some-s3-bucket-name}",
-  appId: process.env["AMPLIFY_APP_ID"],
-  aws: {
-    bucket: "{some-s3-bucket-name}",
-    key: "archive.zip",
-    region: "ca-central-1",
-    accessKey: process.env["AWS_ACCESS_KEY_ID"],
-    secretKey: process.env["AWS_SECRET_ACCESS_KEY"],
+require('dotenv').config();
+
+module.exports = {
+  preview: true,
+  graphQL: {
+    apiToken: process.env['GRAPHQL_API_TOKEN'],
+    apiEndpoint: process.env['GRAPHQL_API_ENDPOINT'],
   },
+  logLevel: 'ALL',
+  archiveDestination: false,
+  appId: process.env['AMPLIFY_APP_ID'],
+  stage: 'stage',
+
+  templateSource: './src',
+  destination: './dist',
 };
-
-const build = new WP(options);
-build.buildF()
-.then(result => {
-  // Act on the result
-})
-.catch(reason => {
-  // Act on the exception
-});
-
 ```
 
-### Tools Directory
+```bash
+# .env
 
-Copy the contents of the tools directory to the root of your web project. After making theme-dev.sh executable with `chmod +x theme-dev.sh` run the shell script to:
-
-- Start the Serverless Offline plugin, listening on port 3000, to simulate a local API Gateway and Lambda processor
-- Start a local HTTP server on port 3701 to view your web project
-- Start a watcher on the theme and resources folder to trigger rebuilds when a file changes
-
-## For Module Developers
-
-After cloning this repository be sure to run `npm i` to install the runtime as well as developer dependencies. This module was created with the help of the [Serverless Framework](https://http://serverless.com/) and you should be familiar with how it works. This source code assumes you will use the [serverless offline plugin](https://github.com/dherault/serverless-offline) to emulate AWS λ and API Gateway locally. An NPM script is provided to easily launch the plugin on port 3000. If you are using Visual Studio Code please consider adding the following profile to .vscode/launch.json. It will connect the VSCode debugger to the running offline plugin and allow you to step through the Lambda source.
-
-```json
-{
-  "type": "node",
-  "request": "attach",
-  "name": "Attach",
-  "cwd": "${fileDirname}",
-  "port": 9229,
-  "skipFiles": [
-    "<node_internals>/**"
-  ]
-},
+GRAPHQL_API_TOKEN=xxxxxxxxxxxxxxxxxxxxxxxxxxxxx     # Authentication token provided by your GraphQL provider
+GRAPHQL_API_ENDPOINT={https GraphQL endpoint}       # GraphQL endpoint
+AMPLIFY_APP_ID=xxxxxxxxxxxxxx                       # AWS Amplify application id if deploying to AWS Amplify
+LOG_LEVEL=ALL                                       # Logging verbosity
+DEPLOY_BUCKET={bucket-name}                         # AWS bucket to store built artifacts if deploying to AWS Amplify
+DEPLOY_PROFILE={aws-profile-name}                   # AWS profile name from ~/.aws/credentials
 ```
 
 ## Built With
 
 The following is a list of the technologies used to develop and manage this project.
 
-| Tool                                                                                                              | Description                                                                                          |
-| ----------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| [AWS-SDK](https://aws.amazon.com/sdk-for-node-js/)                                                                | Helps orchestrate S3 and Cloudfront management                                                       |
-| [Coffee](https://en.wikipedia.org/wiki/Coffee)                                                                    | A good source of [C8H10N4O2](https://pubchem.ncbi.nlm.nih.gov/compound/caffeine)                     |
-| [DatoCMS](https://www.datocms.com)                                                                                | A GraphQL native CaaS                                                                                |
-| [Git 2.17.1](https://git-scm.com/)                                                                                | Source Code Management (SCM) client                                                                  |
-| [Joy](https://github.com/tforster/joy)                                                                            | A semi-opinionated framework for managing some common devops tasks                                   |
-| [NodeJS 12.3.0](https://nodejs.org/en/)                                                                           | Task running, automation and driving the API                                                         |
-| [NPM 6.10.1](https://www.npmjs.com/package/npm)                                                                   | Node package management                                                                              |
-| [Oh-My-Zsh](https://github.com/robbyrussell/oh-my-zsh)                                                            | ZSH shell enhancement                                                                                |
-| [Serverless Framework](https://serverless.com)                                                                    |                                                                                                      |
-| [Ubuntu 18.04 for WSL2](https://www.microsoft.com/en-ca/p/ubuntu/9nblggh4msv6?activetab=pivot:overviewtab)        | Canonical supported Ubuntu for Windows Subsystem for Linux                                           |
-| [Visual Studio Code 1.41.1](https://code.visualstudio.com/)                                                       | Powerful and cross-platform code editor                                                              |
-| [Windows 10 Pro Insider Preview](https://www.microsoft.com/en-us/software-download/windowsinsiderpreviewadvanced) | The stable version of the Insiders build typically brings new tools of significant use to developers |
-| [WSL 2](https://docs.microsoft.com/en-us/windows/wsl/install-win10)                                               | Windows Subsystem for Linux supports native Linux distributions                                      |
-| [ZSH](https://www.zsh.org/)                                                                                       | A better shell than Bash                                                                             |
+| Tool                                                                                                              | Description                                                                                                                        |
+| ----------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| [AWS-SDK](https://aws.amazon.com/sdk-for-node-js/)                                                                | Helps orchestrate S3 and Cloudfront management                                                                                     |
+| [Coffee](https://en.wikipedia.org/wiki/Coffee)                                                                    | A good source of [C8H10N4O2](https://pubchem.ncbi.nlm.nih.gov/compound/caffeine)                                                   |
+| [DatoCMS](https://www.datocms.com)                                                                                | A GraphQL native CaaS                                                                                                              |
+| [Git 2.25.1](https://git-scm.com/)                                                                                | Source Code Management (SCM) client                                                                                                |
+| [Joy](https://github.com/tforster/joy)                                                                            | A semi-opinionated framework for managing some common devops tasks                                                                 |
+| [NodeJS 12.3.0](https://nodejs.org/en/)                                                                           | Task running, automation and driving the API                                                                                       |
+| [NPM 6.14.5](https://www.npmjs.com/package/npm)                                                                   | Node package management                                                                                                            |
+| [Oh-My-Zsh](https://github.com/robbyrussell/oh-my-zsh)                                                            | ZSH shell enhancement                                                                                                              |
+| [Serverless Framework](https://serverless.com)                                                                    | The Serverless Framework gives you everything you need to develop, deploy, monitor and secure serverless application on any cloud. |
+| [Ubuntu 20.04 for WSL2](https://www.microsoft.com/en-ca/p/ubuntu/9nblggh4msv6?activetab=pivot:overviewtab)        | Canonical supported Ubuntu for Windows Subsystem for Linux                                                                         |
+| [Visual Studio Code 1.45.1](https://code.visualstudio.com/)                                                       | Powerful and cross-platform code editor                                                                                            |
+| [Windows 10 Pro Insider Preview](https://www.microsoft.com/en-us/software-download/windowsinsiderpreviewadvanced) | The stable version of the Insiders build typically brings new tools of significant use to developers                               |
+| [WSL 2](https://docs.microsoft.com/en-us/windows/wsl/install-win10)                                               | Windows Subsystem for Linux supports native Linux distributions                                                                    |
+| [ZSH](https://www.zsh.org/)                                                                                       | A better shell than Bash                                                                                                           |
 
 ## Change Log
 
-v0.0.1 **Bug fixes in concert with YMWA** (2020-02-19)
+v0.4.0 **Switched repository** (2020-05-24)
 
-Numerous minor issues were resolved after using WebProducer in a first run with Your Mental Wealth Advisors website.
+Migrated the repository from Azure DevOps repos to GitHub.
 
-v0.0.0 **Initial creation** (2020-01-07)
+v0.3.0 **Improve stream stability** (2020-03-26)
+
+Streams support was refactored to improve both stability and performance.
+
+v0.2.0 **First-use updates** (2020-02-19)
+
+Numerous minor issues were resolved after using WebProducer for the first time as a dependency of a real project.
+
+v0.1.0 **Initial creation** (2020-01-07)
 
 Git repository created and proof-of-concept code added to /src directory.
