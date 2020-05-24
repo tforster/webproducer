@@ -91,18 +91,18 @@ The following is a list of the technologies used to develop and manage this proj
 
 ## Change Log
 
-v1.0.0 **First milestone release** (2020-05-24)
+v0.4.0 **Switched repository** (2020-05-24)
 
-v0.1.6 **Improve stream stability** (2020-03-26)
+Migrated the repository from Azure DevOps repos to GitHub.
 
-Bug fixes
+v0.3.0 **Improve stream stability** (2020-03-26)
 
-- [418](https://dev.azure.com/geekhacks/Web%20Producer/_boards/board/t/Web%20Producer%20Team/Backlog%20items/?workitem=418)
+Streams support was refactored to improve both stability and performance.
 
-v0.0.1 **Bug fixes in concert with YMWA** (2020-02-19)
+v0.2.0 **First-use updates** (2020-02-19)
 
-Numerous minor issues were resolved after using WebProducer in a first run with Your Mental Wealth Advisors website.
+Numerous minor issues were resolved after using WebProducer for the first time as a dependency of a real project.
 
-v0.0.0 **Initial creation** (2020-01-07)
+v0.1.0 **Initial creation** (2020-01-07)
 
 Git repository created and proof-of-concept code added to /src directory.
