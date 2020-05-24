@@ -88,16 +88,16 @@ class VinylHandlebars {
       const fields = data[key];
 
       // Only attempt to build a page if the fields data contains a reference to the physical ebs file to use
-      if (fields && fields._modelApiKey && templates[`${fields._modelApiKey}.hbs`]) {
-        // Merge the data element with the template indicated in the data elements _modelApiKey property (required)
-        const result = templates[`${fields._modelApiKey}.hbs`](fields);
+      if (fields && fields.modelName && templates[`${fields.modelName}.hbs`]) {
+        // Merge the data element with the template indicated in the data elements modelName property (required)
+        const result = templates[`${fields.modelName}.hbs`](fields);
 
         // key.trim() required to cleanup any spaces that sometimes get added by the content editor
         const vf = new Vinyl({ path: key.trim().slice(1), contents: Buffer.from(result) });
         stream.write(vf);
         pages++;
       } else {
-        console.error(`Missing _modelApiKey for >${key}<`);
+        console.error(`Missing modelName for >${key}<`);
       }
     }
     stream.end();

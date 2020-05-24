@@ -97,9 +97,9 @@ class GraphQLDataProvider {
           // 1.fetch query
           const graphQLOptions = {
             query: dataFiles["query.graphql"],
-            endpoint: "https://graphql.datocms.com/",
+            endpoint: options.graphQL.apiEndpoint,
             transform: dataFiles["transform.js"],
-            token: options.datoCMSToken,
+            token: options.graphQL.apiToken,
             preview: options.preview,
           };
 
