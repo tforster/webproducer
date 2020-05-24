@@ -72,22 +72,22 @@ DEPLOY_PROFILE={aws-profile-name}                   # AWS profile name from ~/.a
 
 The following is a list of the technologies used to develop and manage this project.
 
-| Tool                                                                                                              | Description                                                                                          |
-| ----------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| [AWS-SDK](https://aws.amazon.com/sdk-for-node-js/)                                                                | Helps orchestrate S3 and Cloudfront management                                                       |
-| [Coffee](https://en.wikipedia.org/wiki/Coffee)                                                                    | A good source of [C8H10N4O2](https://pubchem.ncbi.nlm.nih.gov/compound/caffeine)                     |
-| [DatoCMS](https://www.datocms.com)                                                                                | A GraphQL native CaaS                                                                                |
-| [Git 2.25.1](https://git-scm.com/)                                                                                | Source Code Management (SCM) client                                                                  |
-| [Joy](https://github.com/tforster/joy)                                                                            | A semi-opinionated framework for managing some common devops tasks                                   |
-| [NodeJS 12.3.0](https://nodejs.org/en/)                                                                           | Task running, automation and driving the API                                                         |
-| [NPM 6.14.5](https://www.npmjs.com/package/npm)                                                                   | Node package management                                                                              |
-| [Oh-My-Zsh](https://github.com/robbyrussell/oh-my-zsh)                                                            | ZSH shell enhancement                                                                                |
-| [Serverless Framework](https://serverless.com)                                                                    |                                                                                                      |
-| [Ubuntu 20.04 for WSL2](https://www.microsoft.com/en-ca/p/ubuntu/9nblggh4msv6?activetab=pivot:overviewtab)        | Canonical supported Ubuntu for Windows Subsystem for Linux                                           |
-| [Visual Studio Code 1.45.1](https://code.visualstudio.com/)                                                       | Powerful and cross-platform code editor                                                              |
-| [Windows 10 Pro Insider Preview](https://www.microsoft.com/en-us/software-download/windowsinsiderpreviewadvanced) | The stable version of the Insiders build typically brings new tools of significant use to developers |
-| [WSL 2](https://docs.microsoft.com/en-us/windows/wsl/install-win10)                                               | Windows Subsystem for Linux supports native Linux distributions                                      |
-| [ZSH](https://www.zsh.org/)                                                                                       | A better shell than Bash                                                                             |
+| Tool                                                                                                              | Description                                                                                                                        |
+| ----------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| [AWS-SDK](https://aws.amazon.com/sdk-for-node-js/)                                                                | Helps orchestrate S3 and Cloudfront management                                                                                     |
+| [Coffee](https://en.wikipedia.org/wiki/Coffee)                                                                    | A good source of [C8H10N4O2](https://pubchem.ncbi.nlm.nih.gov/compound/caffeine)                                                   |
+| [DatoCMS](https://www.datocms.com)                                                                                | A GraphQL native CaaS                                                                                                              |
+| [Git 2.25.1](https://git-scm.com/)                                                                                | Source Code Management (SCM) client                                                                                                |
+| [Joy](https://github.com/tforster/joy)                                                                            | A semi-opinionated framework for managing some common devops tasks                                                                 |
+| [NodeJS 12.3.0](https://nodejs.org/en/)                                                                           | Task running, automation and driving the API                                                                                       |
+| [NPM 6.14.5](https://www.npmjs.com/package/npm)                                                                   | Node package management                                                                                                            |
+| [Oh-My-Zsh](https://github.com/robbyrussell/oh-my-zsh)                                                            | ZSH shell enhancement                                                                                                              |
+| [Serverless Framework](https://serverless.com)                                                                    | The Serverless Framework gives you everything you need to develop, deploy, monitor and secure serverless application on any cloud. |
+| [Ubuntu 20.04 for WSL2](https://www.microsoft.com/en-ca/p/ubuntu/9nblggh4msv6?activetab=pivot:overviewtab)        | Canonical supported Ubuntu for Windows Subsystem for Linux                                                                         |
+| [Visual Studio Code 1.45.1](https://code.visualstudio.com/)                                                       | Powerful and cross-platform code editor                                                                                            |
+| [Windows 10 Pro Insider Preview](https://www.microsoft.com/en-us/software-download/windowsinsiderpreviewadvanced) | The stable version of the Insiders build typically brings new tools of significant use to developers                               |
+| [WSL 2](https://docs.microsoft.com/en-us/windows/wsl/install-win10)                                               | Windows Subsystem for Linux supports native Linux distributions                                                                    |
+| [ZSH](https://www.zsh.org/)                                                                                       | A better shell than Bash                                                                                                           |
 
 ## Change Log
 

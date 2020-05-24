@@ -1,6 +1,6 @@
 {
   "name": "@tforster/webproducer",
-  "version": "1.0.0",
+  "version": "0.4.0",
   "description": "WebProducer, or simply WP, is a serverless application for publishing content to the web. It equally supports websites and web applications with a lean, streams based, architecture.",
   "author": "",
   "license": "ISC",
