@@ -76,7 +76,7 @@ class GraphQLDataProvider {
    * @memberof WebProducer
    */
   static async data(sourceStream, options) {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       const dataFiles = {};
 
       try {
@@ -84,7 +84,7 @@ class GraphQLDataProvider {
           objectMode: true,
         });
 
-        writable._write = function(file, _, done) {
+        writable._write = function (file, _, done) {
           dataFiles[file.basename] = file.contents.toString();
           done();
         };
@@ -108,14 +108,14 @@ class GraphQLDataProvider {
             return resolve(data);
           } catch (err) {
             console.error("_fetchData():", err);
-            throw err;
+            return reject(err)
           }
         });
 
         sourceStream.pipe(writable);
       } catch (err) {
-        console.log(err);
-        throw err;
+        console.error(err);
+        return reject(err);
       }
     });
   }
