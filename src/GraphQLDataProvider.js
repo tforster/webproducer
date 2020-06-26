@@ -84,6 +84,7 @@ class GraphQLDataProvider {
           objectMode: true,
         });
 
+        // Each time we parse a file write it's name and contents to the stream
         writable._write = function (file, _, done) {
           dataFiles[file.basename] = file.contents.toString();
           done();
@@ -97,9 +98,9 @@ class GraphQLDataProvider {
           // 1.fetch query
           const graphQLOptions = {
             query: dataFiles["query.graphql"],
-            endpoint: options.graphQL.apiEndpoint,
+            endpoint: options.dataSource.path,
             transform: dataFiles["transform.js"],
-            token: options.graphQL.apiToken,
+            token: options.dataSource.token,
             preview: options.preview,
           };
 
@@ -108,6 +109,9 @@ class GraphQLDataProvider {
             return resolve(data);
           } catch (err) {
             console.error("_fetchData():", err);
+            if (err.errors && err.errors[0] && err.errors[0].message && err.errors[0].message === "No query string was present") {
+              console.error("Check that the GraphQL query was passed properly.")
+            }
             return reject(err)
           }
         });

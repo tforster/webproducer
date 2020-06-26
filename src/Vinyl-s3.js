@@ -25,13 +25,26 @@ class VinylS3 {
     this.s3 = new AWS.S3({ region: options.region });
   }
 
+
+  /**
+   * 
+   *
+   * @param {*} globs
+   * @param {*} relativePath
+   * @returns
+   * @memberof VinylS3
+   */
   src(globs, relativePath) {
-    const self = this;//new VinylS3(this.options);
+    //const self = this;//
+    const self = new VinylS3(this.options);
     self.keys = null;
+
+    // Call our override method
     return self._src(globs, relativePath);
   }
 
   /**
+   * 
    * Stream Vinyl files FROM an S3 bucket
    *
    * @param {*} globs
@@ -53,7 +66,7 @@ class VinylS3 {
         try {
           // Get list of all key objects
           // ! Max is 1000. This code does not handle > 1000 keys at this time
-          self.keys = (await self.s3.listObjectsV2({ Bucket: self.options.Bucket }).promise()).Contents;
+          self.keys = (await self.s3.listObjectsV2({ Bucket: self.options.bucket }).promise()).Contents;
           // Map to remove extraneous properties and get us to an array of just Keys
           self.keys = self.keys.map((key) => key.Key);
           // Filter the list of Keys based on the glob
@@ -91,7 +104,7 @@ class VinylS3 {
       try {
         const s3Object = await self.s3
           .getObject({
-            Bucket: self.options.Bucket,
+            Bucket: self.options.bucket,
             Key: key,
           })
           .promise();

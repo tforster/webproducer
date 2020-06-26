@@ -54,7 +54,7 @@ class WebProducer {
     }
 
     this.destination = this._vinylize(this.config.destination);
-
+    this.config.src = this._vinylize(this.config.templateSource);
     // Name of S3 bucket to upload this.dist contents to
     //this.amplify = options.amplify;
     // Additional AWS options, including ./aws/credentials profile
@@ -80,11 +80,10 @@ class WebProducer {
    */
   _vinylize(metaData) {
     let vinylize = {
+      type: metaData.type,
+      path: metaData.path.toLowerCase()
     };
 
-    if (metaData.type === "s3") {
-      vinylize.region = metaData.region;
-    }
 
     // if (typeof metaData === "object") {
     //   // Assume an S3 object
@@ -95,20 +94,26 @@ class WebProducer {
     //   vinylize.path = path.resolve(metaData);
     // }
 
-    switch (metaData.type) {
+    switch (vinylize.type) {
       case "graphql":
         break;
       case "s3":
+        vinylize.region = metaData.region;
+        const u = new URL(vinylize.path);
+        vinylize.bucket = u.host;
+        vinylize.path = u.pathname;
         break;
       case "filesystem":
-        vinylize.path = path.resolve(metaData.path);
+        vinylize.path = path.resolve(vinylize.path);
         break;
       default:
     }
 
     // Calculate the Vinyl base.
     // ToDo: Determine if this is needed when we create legit Vinyl file
-    vinylize.base = path.dirname(vinylize.path);
+    //vinylize.base = path.dirname(vinylize.path);
+    // Setting to path for now since S3 from Yaml should be specifiying that
+    vinylize.base = vinylize.path;
 
     // Use RegEx to determine if last path segment is a filename (at least one "." must be present)
     const matches = vinylize.path.match(/\/[^.^\/]*$/g);
@@ -169,9 +174,9 @@ class WebProducer {
     // ToDo: Refactor Vinyl-S3 to use the factory pattern so we don't have to re-instance it. Then it can be used interchangeably with vfs.
     // Initialise a variable that will point to either a VinylS3 or VinylFS object
     let sourceStream;
-    if (config.templateSource.type === "s3") {
+    if (config.src.type === "s3") {
       // Stream from AWS S3
-      sourceStream = new vs3(config.templateSource);
+      sourceStream = new vs3(config.src);
 
     } else {
       // Stream from the local filesystem
@@ -179,7 +184,8 @@ class WebProducer {
       //      var tempPrefix = config.templateSource;
     }
     // Template source is expected to be in a stage specific and lower cased subfolder, eg, /dev, /stage or /prod
-    var tempPrefix = config.stage.toLowerCase();
+    var tempPrefix = config.src.base;
+    tempPrefix = "src/stage"
 
     console.log("profile", "before data");
 
