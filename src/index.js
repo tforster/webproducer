@@ -3,7 +3,6 @@
 
 // System dependencies (Built in modules)
 const { finished } = require("stream");
-const path = require("path");
 
 // Third party dependencies (Typically found in public NPM packages)
 const cleanCSS = require("gulp-clean-css");
@@ -17,7 +16,6 @@ const config = require("./Config");
 const GraphQLDataProvider = require("./GraphQLDataProvider");
 const Utils = require("./Utils");
 const vs3 = require("./Vinyl-s3");
-const vamplify = require("./Vinyl-Amplify");
 const VHandlebars = require("./Vinyl-Handlebars");
 const vzip = require("./Vinyl-zip");
 
@@ -32,7 +30,7 @@ class WebProducer {
    * @param {object} options: Runtime options passed in from project implementation
    * @memberof WebProducer
    */
-  constructor(options, configPathOrString) {
+  constructor(configPathOrString) {
 
     // set the configuration after parsing the config YAML or file pointing to YAML
     try {
@@ -44,114 +42,20 @@ class WebProducer {
       throw err;
     }
 
-    // Set console.log and console.error functionality
-    WebProducer._setLogging(this.config.logLevel);
-    //this.options = options;
-
     // Check that a stage value was provided.
     if (!this.config.stage) {
       throw new Error("The stage is not defined");
     }
 
-    this.destination = this._vinylize(this.config.destination);
-    this.config.src = this._vinylize(this.config.templateSource);
-    // Name of S3 bucket to upload this.dist contents to
-    //this.amplify = options.amplify;
-    // Additional AWS options, including ./aws/credentials profile
-    //this.aws = options.aws;
-    // READ-ONLY token to access CMS
+    // Get configuration of the source and destination folders (could local, S3, etc)
+    this.src = Utils.vinylise(this.config.templateSource);
+    this.dest = Utils.vinylise(this.config.destination);
 
     // ToDo: Rename to something provider agnostic
     this.datoCMSToken = this.config.dataSource.token;
-
-    // Amplify appId
-    //this.appId = options.appId;
-    // Determine whether to use draft or published data
     this.preview = this.config.preview;
-    // Initialise the Handlebars helper class
-    //this.hb = new HandlebarsHelper();
   }
 
-  /**
-   * Parses the supplied metaData string into a Vinyl-like structure that can be used with the Vinyl constructor later
-   * @param {string} metaData:  An S3 URL, or an absolute path, or a relative path
-   * @returns:                  A lean object that can be used in a Vinyl file constructor with additional properties
-   * @memberof WebProducer
-   */
-  _vinylize(metaData) {
-    let vinylize = {
-      type: metaData.type,
-      path: metaData.path.toLowerCase()
-    };
-
-
-    // if (typeof metaData === "object") {
-    //   // Assume an S3 object
-    //   vinylize = { ...metaData };
-    //   vinylize.path = metaData.key || "";
-    // } else {
-    //   // Assume a file path string
-    //   vinylize.path = path.resolve(metaData);
-    // }
-
-    switch (vinylize.type) {
-      case "graphql":
-        break;
-      case "s3":
-        vinylize.region = metaData.region;
-        const u = new URL(vinylize.path);
-        vinylize.bucket = u.host;
-        vinylize.path = u.pathname;
-        break;
-      case "filesystem":
-        vinylize.path = path.resolve(vinylize.path);
-        break;
-      default:
-    }
-
-    // Calculate the Vinyl base.
-    // ToDo: Determine if this is needed when we create legit Vinyl file
-    //vinylize.base = path.dirname(vinylize.path);
-    // Setting to path for now since S3 from Yaml should be specifiying that
-    vinylize.base = vinylize.path;
-
-    // Use RegEx to determine if last path segment is a filename (at least one "." must be present)
-    const matches = vinylize.path.match(/\/[^.^\/]*$/g);
-    if (matches) {
-      // Is a directory
-      vinylize.stat = { mode: 16384 };
-    } else {
-      // Is a file
-      vinylize.stat = { mode: 32768 };
-      vinylize.filename = path.basename(vinylize.path);
-    }
-
-    return vinylize;
-  }
-
-  /**
-   * Takes advantage of the global nature of console methods to manage logging verbosity to CloudWatch (receiver of stdOut and stdErr)
-   * @static
-   * @param {*} logLevel
-   * @memberof WebProducer
-   */
-  static _setLogging(logLevel) {
-    // Prevent WP from writing to stdOut, stdErr, etc as it is a blocking synchronous operation and also fills up CloudWatch
-    const verbosity = (logLevel || "none").toLowerCase();
-    switch (verbosity) {
-      case "all":
-        // Show logs and errors
-        break;
-      case "errors":
-        // Show errors
-        console.log = () => { };
-        break;
-      default:
-        // Show nothing
-        console.error = () => { };
-        console.log = () => { };
-    }
-  }
 
   /**
    * Entry point into WebProducer
@@ -167,33 +71,32 @@ class WebProducer {
       // ToDo: Consider a way of emptying or synchronising destination buckets
     } else {
       // Destination variable references a filesystem path
-      await Utils.emptyDirectories(config.destination.path);
+      await Utils.emptyDirectories(this.dest.path);
     }
 
     // Point the source stream to either S3 (vs3) or the local filesystem (vfs)
     // ToDo: Refactor Vinyl-S3 to use the factory pattern so we don't have to re-instance it. Then it can be used interchangeably with vfs.
     // Initialise a variable that will point to either a VinylS3 or VinylFS object
     let sourceStream;
-    if (config.src.type === "s3") {
-      // Stream from AWS S3
-      sourceStream = new vs3(config.src);
 
+    if (this.src.type === "s3") {
+      // Stream from AWS S3
+      sourceStream = new vs3(this.src);
     } else {
       // Stream from the local filesystem
       sourceStream = vfs;
-      //      var tempPrefix = config.templateSource;
     }
     // Template source is expected to be in a stage specific and lower cased subfolder, eg, /dev, /stage or /prod
-    var tempPrefix = config.src.base;
-    tempPrefix = "src/stage"
+    const srcRoot = this.src.base;
 
     console.log("profile", "before data");
 
     try {
       // Parallelise fetching data from API, precompiling templates and all from async stream reading
       var [siteData, _] = await Promise.all([
-        await GraphQLDataProvider.data(sourceStream.src([`${tempPrefix}/db/**/*`]), config),
-        vhandlebars.precompile(sourceStream.src(`${tempPrefix}/theme/**/*.hbs`)),
+        // We use /db/**/* since we already constructed the S3 Stream with s3://bucket/src/{stage}
+        await GraphQLDataProvider.data(sourceStream.src(`${srcRoot}/db/**/*`), config),
+        vhandlebars.precompile(sourceStream.src(`${srcRoot}/theme/**/*.hbs`)),
       ]);
       // Quick check to ensure we have actual data to work with
       if (!siteData || Object.entries(siteData).length === 0) {
@@ -216,22 +119,22 @@ class WebProducer {
       // Add all files to the stream other than those in folders we are specifically interacting with
       sourceStream.src(
         [
-          `${tempPrefix}/**/*.*`,
-          `!${tempPrefix}/db/**`,
-          `!${tempPrefix}/scripts/**`,
-          `!${tempPrefix}/stylesheets/**`,
-          `!${tempPrefix}/theme/**`,
-        ],
-        "stage/"
+          `${srcRoot}/**/*.*`,
+          `!${srcRoot}/db/**`,
+          `!${srcRoot}/scripts/**`,
+          `!${srcRoot}/stylesheets/**`,
+          `!${srcRoot}/theme/**`,
+        ]
       ),
+
       // Minify JavaScript files and add to the stream
       sourceStream
-        .src(`${tempPrefix}/scripts/**/*.js`, "stage/scripts/")
+        .src(`${srcRoot}/scripts/**/*.js`, "stage/scripts/")
         .pipe(terser())
         .pipe(sourcemaps.write("/")),
       // Minify CSS files and add to the stream
       sourceStream
-        .src(`${tempPrefix}/stylesheets/**/*.css`, "stage/stylesheets/")
+        .src(`${srcRoot}/stylesheets/**/*.css`, "stage/stylesheets/")
         .pipe(sourcemaps.init())
         .pipe(cleanCSS())
         .pipe(sourcemaps.write("/")),
@@ -242,9 +145,14 @@ class WebProducer {
     console.log("profile", "after merge");
 
     // Set the destinationStream to either a VinylFS or Vinyl-S3 stream
-    const destinationStream = this.destination.Bucket
+    const destinationStream = this.dest.type === "s3"
       ? new vs3(config.destination).dest(config.destination.Bucket)
-      : vfs.dest(config.destination);
+      : vfs.dest(this.dest.path);
+
+    destinationStream.on("error", (err) => {
+      console.error(err);
+      throw err;
+    });
 
     // Aggregate all source streams into the destination stream, with optional intermediate zipping
     await Promise.all(
@@ -255,13 +163,13 @@ class WebProducer {
             // Set success and failure handlers
             source.on("end", () => {
               console.log("profile", "merge ended");
-              resolve();
+              return resolve();
             });
 
             // Set failure handlers
             source.on("error", (err) => {
               console.error("MERGE:", err);
-              reject(err);
+              return reject(err);
             });
 
             // Account for possible zipping of contents
@@ -270,7 +178,12 @@ class WebProducer {
               source.pipe(vzip.zip()).pipe(destinationStream, { end: false });
             } else {
               // Merge streams directly to the destination
-              source.pipe(destinationStream, { end: false });
+              try {
+                source.pipe(destinationStream, { end: false });
+              } catch (err) {
+                console.error(err);
+
+              }
             }
           })
       )
@@ -282,28 +195,6 @@ class WebProducer {
       }
     });
 
-    // Should we also deploy to Amplify?
-    if (config.amplifyDeploy) {
-      console.log("profile", "amplifyDeploy starting");
-      // Call the Amplify deploy endpoint which is API asynchnronous!
-      // ToDo: Determine how to follow deploy progress and report back to here. Currently deploy is fire-and-forget!!
-      const deployDetails = await vamplify.deploy(
-        {
-          appId: config.appId,
-          stage: config.stage,
-          // Note that Amplify is not available in all regions yet, including ca-central-1. Force to us-east-1 for now.
-          aws: {
-            Bucket: config.amplifyDeploy.Bucket,
-            key: config.amplifyDeploy.key,
-            bucketRegion: config.amplifyDeploy.region,
-            amplifyRegion: "us-east-1",
-          },
-        },
-        destinationStream
-      );
-
-      console.log("Amplify deployment job:", deployDetails);
-    }
   }
 }
 

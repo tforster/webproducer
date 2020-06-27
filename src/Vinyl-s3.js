@@ -1,7 +1,6 @@
 ("use strict");
 
 // System dependencies (Built in modules)
-//const { Duplex } = require("stream");
 const { Readable, Writable } = require("stream");
 
 // Third party dependencies (Typically found in public NPM packages)
@@ -30,17 +29,16 @@ class VinylS3 {
    * 
    *
    * @param {*} globs
-   * @param {*} relativePath
    * @returns
    * @memberof VinylS3
    */
-  src(globs, relativePath) {
+  src(globs) {
     //const self = this;//
     const self = new VinylS3(this.options);
     self.keys = null;
 
     // Call our override method
-    return self._src(globs, relativePath);
+    return self._src(globs);
   }
 
   /**
@@ -51,36 +49,45 @@ class VinylS3 {
    * @returns
    * @memberof VinylS3
    */
-  _src(globs, relativePath) {
+  _src(globs) {
     const self = this;
 
-    self.globs = globs;
-    // If present, is the relativePath segment to remove
-    self.relativePath = relativePath;
+    // Convert single string globs to an array
+    if (!Array.isArray(globs)) {
+      globs = [globs];
+    }
 
     const readable = new Readable({ objectMode: true, highWaterMark: 64 });
 
     readable._read = async function () {
       if (!self.keys) {
         // First time here, let's seed the keys array with data from S3 source
+
         try {
-          // Get list of all key objects
-          // ! Max is 1000. This code does not handle > 1000 keys at this time
-          self.keys = (await self.s3.listObjectsV2({ Bucket: self.options.bucket }).promise()).Contents;
+
+          // Get list of all key objects 
+          // ! Max is 1000. This code does not handle > 1000 keys at this time but Prefix filtering should get us a long way.
+          self.keys = (await self.s3.listObjectsV2({
+            Bucket: self.options.bucket,  // Bucket name originally from the constructor 
+            Prefix: self.options.base     // Use the base as a prefix to filter. E.g. prefix = /src/stage
+          }).promise()).Contents;
+
           // Map to remove extraneous properties and get us to an array of just Keys
           self.keys = self.keys.map((key) => key.Key);
+
           // Filter the list of Keys based on the glob
-          self.keys = micromatch(self.keys, self.globs);
+          self.keys = micromatch(self.keys, globs);
+
         } catch (err) {
-          console.error(`Vinyl-S3 Error ${err.code}`);
           switch (err.code) {
             case "NoSuchBucket":
-              console.error("ERR: Bucket not found", self.options.Bucket, self.options.region);
+              console.error("ERR: Bucket not found", self.options.bucket, self.options.region);
               break;
             case "AccessDenied":
+              console.error("ERR: Bucket access denied", self.options.bucket)
               throw err;
             default:
-              console.error("ERR: Bucket error to be added to s3._read", self.options.Bucket, self.options.region);
+              console.error("ERR: Bucket error to be added to s3._read", self.options.bucket, self.options.region);
           }
           throw err;
         }
@@ -96,12 +103,13 @@ class VinylS3 {
       // Pop the oldest key off the top of the array FIFO style
       const key = self.keys.pop();
 
-      // Start creating our Vinyl object params. Remove any prefix path like stage or prod
-      const regex = new RegExp(`^${self.relativePath}`);
-      const vinylParams = { path: key.replace(regex, "") };
+      // Start creating our Vinyl object params. Remove any prefix path like /src/stage or /dist/prod
+      const prefix = new RegExp(`^${self.options.base}/`);
+      const vinylParams = { path: key.replace(prefix, "") };
 
       // Fetch the data from S3
       try {
+
         const s3Object = await self.s3
           .getObject({
             Bucket: self.options.bucket,
@@ -168,10 +176,6 @@ class VinylS3 {
         throw err;
       }
     };
-
-    // this.writable.on("finish", () => {
-    //   console.log("FINISH");
-    // });
 
     return this.writable;
   }
