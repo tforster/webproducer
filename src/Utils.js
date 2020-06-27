@@ -2,6 +2,9 @@ const { promises: fs } = require("fs");
 const path = require("path");
 
 
+const mime = require("mime/lite");
+
+
 class Utils {
   /**
    * Empties the specified directories by recursively removing everything and then force recreating
@@ -15,6 +18,18 @@ class Utils {
       directories = [directories];
     }
     return Promise.all(directories.map((directory) => fs.rmdir(directory, { recursive: true })));
+  }
+
+
+  /**
+   * Returns the mimetype matching the supplied extension. Empty extensions are presumed to come from .html slugs.
+   * @static
+   * @param {string} ext: The extension, if available, to lookup the mime type for
+   * @returns {string}:   The corresponding mimetype, or text/html if no extension was provided.
+   * @memberof Utils
+   */
+  static getMimeType(ext) {
+    return ext ? mime.getType(ext) : "text/html";
   }
 
 

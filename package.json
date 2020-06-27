@@ -51,6 +51,7 @@
     "handlebars": "^4.7.6",
     "jszip": "^3.2.2",
     "micromatch": "^4.0.2",
+    "mime": "^2.4.6",
     "node-fetch": "^2.6.0",
     "vinyl": "^2.2.0",
     "vinyl-fs": "^3.0.3",

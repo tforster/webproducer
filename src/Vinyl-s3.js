@@ -8,6 +8,8 @@ const AWS = require("aws-sdk");
 const micromatch = require("micromatch");
 const Vinyl = require("vinyl");
 
+const Utils = require("./Utils");
+
 /**
  * Implements Gulp-like dest() function to terminate a piped process by uploading the supplied Vinyl file to AWS S3
  * @class VinylS3
@@ -58,7 +60,6 @@ class VinylS3 {
     }
 
     const readable = new Readable({ objectMode: true, highWaterMark: 64 });
-
     readable._read = async function () {
       if (!self.keys) {
         // First time here, let's seed the keys array with data from S3 source
@@ -141,44 +142,56 @@ class VinylS3 {
 
   /**
    * Stream Vinyl files TO an S3 bucket
+   */
+
+
+  /**
+   * Allows a readable stream to upload files to S3 for web serving
    *
-   * @returns
+   * @static
+   * @param {object} config:      The parsed S3 data from config.yml
+   * @param {string} [folder=""]: The optional folder in the S3 bucket to write to (e.g. /dist/prod, etc)
+   * @returns {WritableStream}:   A writeable stream 
    * @memberof VinylS3
    */
-  dest() {
-    const _this = this;
-    const options = _this.options;
+  static dest(config, folder = "") {
 
-    this.writable = this.writable || new Writable({ objectMode: true });
+    const Bucket = config.bucket;
+    const s3 = new AWS.S3({ region: config.region });
 
-    this.writable._write = function (file, _, done) {
-      const params = {
-        Bucket: options.Bucket,
-        Key: options.key || file.basename,
-        Body: file.contents,
-        ACL: "public-read",
-      };
+    return new Writable({
+      objectMode: true,
 
-      // Stream the provided file to the S3 bucket and key
-      try {
-        _this.s3
+      write: async function (file, _, done) {
+        // Construct the slug, aka Key because we pass it to the S3 upload() method.
+        const Key = require("path").join(folder, file.relative);
+
+        // Get the Content-Type. Note that extensionless files automatically return text/html
+        const ContentType = Utils.getMimeType(file.extname)
+
+        console.log(Key);
+
+        const params = {
+          Bucket,
+          Key,
+          Body: file.contents,
+          ACL: "public-read",
+          ContentType
+        };
+
+        await s3
           .upload(params)
           .promise()
-          .then(() => {
-            done();
-          })
           .catch((reason) => {
             console.error("VinylS3.dest:s3.upload:", reason);
             throw reason;
           });
-      } catch (err) {
-        console.error("s3._write error", err);
-        throw err;
+        done();
       }
-    };
-
-    return this.writable;
+    });
   }
+
+
 }
 
 module.exports = VinylS3;

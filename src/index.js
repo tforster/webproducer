@@ -42,11 +42,6 @@ class WebProducer {
       throw err;
     }
 
-    // Check that a stage value was provided.
-    if (!this.config.stage) {
-      throw new Error("The stage is not defined");
-    }
-
     // Get configuration of the source and destination folders (could local, S3, etc)
     this.src = Utils.vinylise(this.config.templateSource);
     this.dest = Utils.vinylise(this.config.destination);
@@ -95,7 +90,10 @@ class WebProducer {
       // Parallelise fetching data from API, precompiling templates and all from async stream reading
       var [siteData, _] = await Promise.all([
         // We use /db/**/* since we already constructed the S3 Stream with s3://bucket/src/{stage}
-        await GraphQLDataProvider.data(sourceStream.src(`${srcRoot}/db/**/*`), config),
+        await GraphQLDataProvider.data(
+          sourceStream.src(`${srcRoot}/db/**/*`),
+          config
+        ),
         vhandlebars.precompile(sourceStream.src(`${srcRoot}/theme/**/*.hbs`)),
       ]);
       // Quick check to ensure we have actual data to work with
@@ -106,11 +104,11 @@ class WebProducer {
       console.error(err);
       throw err;
     }
-    console.log("profile", "after data");
+
 
     // Promise.all above resolved with data and precompiled templates from different sources so now we can generate pages.
     const pages = await vhandlebars.build(siteData);
-    console.log("profile", "after build");
+
 
     // ToDo: vs3 below should become a variable that can point to either vfs or vs3
     // e.g. const stream = vs3(options.templateSource) || vfs(options.templateSource)
@@ -129,12 +127,12 @@ class WebProducer {
 
       // Minify JavaScript files and add to the stream
       sourceStream
-        .src(`${srcRoot}/scripts/**/*.js`, "stage/scripts/")
+        .src(`${srcRoot}/scripts/**/*.js`)
         .pipe(terser())
         .pipe(sourcemaps.write("/")),
       // Minify CSS files and add to the stream
       sourceStream
-        .src(`${srcRoot}/stylesheets/**/*.css`, "stage/stylesheets/")
+        .src(`${srcRoot}/stylesheets/**/*.css`)
         .pipe(sourcemaps.init())
         .pipe(cleanCSS())
         .pipe(sourcemaps.write("/")),
@@ -142,15 +140,15 @@ class WebProducer {
       pages.stream.pipe(minifyHtml({ collapseWhitespace: true, removeComments: true })),
     ];
 
-    console.log("profile", "after merge");
+
 
     // Set the destinationStream to either a VinylFS or Vinyl-S3 stream
     const destinationStream = this.dest.type === "s3"
-      ? new vs3(config.destination).dest(config.destination.Bucket)
+      ? vs3.dest(this.dest)
       : vfs.dest(this.dest.path);
 
     destinationStream.on("error", (err) => {
-      console.error(err);
+      console.error("destinationError:", err);
       throw err;
     });
 
@@ -163,13 +161,13 @@ class WebProducer {
             // Set success and failure handlers
             source.on("end", () => {
               console.log("profile", "merge ended");
-              return resolve();
+              resolve();
             });
 
             // Set failure handlers
             source.on("error", (err) => {
               console.error("MERGE:", err);
-              return reject(err);
+              reject(err);
             });
 
             // Account for possible zipping of contents
@@ -178,22 +176,21 @@ class WebProducer {
               source.pipe(vzip.zip()).pipe(destinationStream, { end: false });
             } else {
               // Merge streams directly to the destination
-              try {
-                source.pipe(destinationStream, { end: false });
-              } catch (err) {
-                console.error(err);
-
-              }
+              source.pipe(destinationStream, { end: false });
             }
           })
       )
     );
 
-    finished(destinationStream, (err) => {
-      if (err) {
-        console.error("destinationStream errored:", err);
-      }
-    });
+
+
+    // finished(destinationStream, (err) => {
+    //   if (err) {
+    //     console.error("destinationStream errored:", err);
+    //   } else {
+    //     console.log("destinationStream Finished");
+    //   }
+    // });
 
   }
 }

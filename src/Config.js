@@ -16,7 +16,6 @@ module.exports = (configPathOrString) => {
     // Replace ${env:xxx} with environment variable
     const pattern = /\$\{\w*:(\w*)\}$/igm;
     configString = configString.replace(pattern, (match, p1, p2) => {
-      console.log(match, p1, p2);
       return process.env[p1];
     });
 
