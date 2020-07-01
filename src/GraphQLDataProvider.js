@@ -22,6 +22,9 @@ class GraphQLDataProvider {
    * @memberof GraphQLDataProvider
    */
   static async _fetchData(options) {
+    if (!options.query || !options.transform) {
+      throw new Error("query and/or transform not provided.");
+    }
     // Construct the URL for preview vs published. GraphQL endpoint of "/" = published, "/preview" includes drafts
     const url = new URL(options.endpoint);
     // Default preview to false to prevent accidental leakage of unpublished content

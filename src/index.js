@@ -2,7 +2,7 @@
 ("use strict");
 
 // System dependencies (Built in modules)
-const { finished } = require("stream");
+const { finished, Writable } = require("stream");
 
 // Third party dependencies (Typically found in public NPM packages)
 const cleanCSS = require("gulp-clean-css");
@@ -14,10 +14,12 @@ const vfs = require("vinyl-fs");
 // Project dependencies
 const config = require("./Config");
 const GraphQLDataProvider = require("./GraphQLDataProvider");
+const SyncStream = require("./SyncStream");
 const Utils = require("./Utils");
 const vs3 = require("./Vinyl-s3");
 const VHandlebars = require("./Vinyl-Handlebars");
 const vzip = require("./Vinyl-zip");
+const Metafy = require("./Metafy");
 
 /**
  * Website and web-app agnostic class implementing a "build" process that merges handlebars templates with GraphQL data to produce
@@ -45,10 +47,33 @@ class WebProducer {
     // Get configuration of the source and destination folders (could local, S3, etc)
     this.src = Utils.vinylise(this.config.templateSource);
     this.dest = Utils.vinylise(this.config.destination);
+  }
 
-    // ToDo: Rename to something provider agnostic
-    this.datoCMSToken = this.config.dataSource.token;
-    this.preview = this.config.preview;
+
+  /**
+   * Determines and instantiates the correct Vinyl FS or S3 stream objects to handle input and output
+   * @returns {object}: An object containing the source and destination stream objects
+   * @memberof WebProducer
+   */
+  _prepareStreams() {
+    // Set the sourceStream to either a VinylFS or Vinyl-S3 stream
+    const srcStreamReadable = this.src.type === "s3"
+      ? new vs3(this.src)
+      : vfs;
+
+    // Set the readable and writable destination streams to either a VinylFS or Vinyl-S3 stream
+    let destStreamWritable;
+    let destStreamReadable;
+
+    if (this.dest.type === "s3") {
+      destStreamWritable = vs3.dest(this.dest);
+      destStreamReadable = vs3.src(this.dest + "/**/*");
+    } else {
+      destStreamWritable = vfs.dest(this.dest.path);
+      destStreamReadable = vfs.src(this.dest.path + "/**/*");
+    }
+
+    return { srcStreamReadable, destStreamWritable, destStreamReadable }
   }
 
 
@@ -59,42 +84,26 @@ class WebProducer {
   async main() {
     const config = this.config;
     const vhandlebars = new VHandlebars();
+    const metafy = new Metafy();
 
-    // Clear the destination ready to receive new files. We do not currently support synchronisation or merging to destination.
-    if (config.destination.type === "s3") {
-      // Destination variable references an S3 bucket
-      // ToDo: Consider a way of emptying or synchronising destination buckets
-    } else {
-      // Destination variable references a filesystem path
-      await Utils.emptyDirectories(this.dest.path);
-    }
+    // Setup the FS and/or S3 streams for retrieving and uploading content
+    const { srcStreamReadable, destStreamWritable, destStreamReadable } = this._prepareStreams();
 
-    // Point the source stream to either S3 (vs3) or the local filesystem (vfs)
-    // ToDo: Refactor Vinyl-S3 to use the factory pattern so we don't have to re-instance it. Then it can be used interchangeably with vfs.
-    // Initialise a variable that will point to either a VinylS3 or VinylFS object
-    let sourceStream;
+    // Start getting file meta from dest as a Promise that can be deferred until after the build process
+    const destinationFilesParsed = metafy.parseDestinationFiles(destStreamReadable);
 
-    if (this.src.type === "s3") {
-      // Stream from AWS S3
-      sourceStream = new vs3(this.src);
-    } else {
-      // Stream from the local filesystem
-      sourceStream = vfs;
-    }
     // Template source is expected to be in a stage specific and lower cased subfolder, eg, /dev, /stage or /prod
     const srcRoot = this.src.base;
-
-    console.log("profile", "before data");
 
     try {
       // Parallelise fetching data from API, precompiling templates and all from async stream reading
       var [siteData, _] = await Promise.all([
         // We use /db/**/* since we already constructed the S3 Stream with s3://bucket/src/{stage}
         await GraphQLDataProvider.data(
-          sourceStream.src(`${srcRoot}/db/**/*`),
+          srcStreamReadable.src(`${srcRoot}/db/**/*`),
           config
         ),
-        vhandlebars.precompile(sourceStream.src(`${srcRoot}/theme/**/*.hbs`)),
+        vhandlebars.precompile(srcStreamReadable.src(`${srcRoot}/theme/**/*.hbs`)),
       ]);
       // Quick check to ensure we have actual data to work with
       if (!siteData || Object.entries(siteData).length === 0) {
@@ -105,17 +114,15 @@ class WebProducer {
       throw err;
     }
 
-
     // Promise.all above resolved with data and precompiled templates from different sources so now we can generate pages.
     const pages = await vhandlebars.build(siteData);
 
-
-    // ToDo: vs3 below should become a variable that can point to either vfs or vs3
-    // e.g. const stream = vs3(options.templateSource) || vfs(options.templateSource)
-
+    // Create an array of source streams to merge to the destination stream
     const streamsToMerge = [
+
       // Add all files to the stream other than those in folders we are specifically interacting with
-      sourceStream.src(
+      // ToDo: Consider externalising to webproducer.yml for more control
+      srcStreamReadable.src(
         [
           `${srcRoot}/**/*.*`,
           `!${srcRoot}/db/**`,
@@ -125,32 +132,27 @@ class WebProducer {
         ]
       ),
 
-      // Minify JavaScript files and add to the stream
-      sourceStream
+      // Minify JavaScript files and add to the destination stream
+      srcStreamReadable
         .src(`${srcRoot}/scripts/**/*.js`)
         .pipe(terser())
         .pipe(sourcemaps.write("/")),
-      // Minify CSS files and add to the stream
-      sourceStream
+
+      // Minify CSS files and add to the destination stream
+      srcStreamReadable
         .src(`${srcRoot}/stylesheets/**/*.css`)
         .pipe(sourcemaps.init())
         .pipe(cleanCSS())
         .pipe(sourcemaps.write("/")),
-      // Minify HTML files and add to the stream
+
+      // Minify HTML files and add to the destination stream
       pages.stream.pipe(minifyHtml({ collapseWhitespace: true, removeComments: true })),
     ];
 
 
 
-    // Set the destinationStream to either a VinylFS or Vinyl-S3 stream
-    const destinationStream = this.dest.type === "s3"
-      ? vs3.dest(this.dest)
-      : vfs.dest(this.dest.path);
-
-    destinationStream.on("error", (err) => {
-      console.error("destinationError:", err);
-      throw err;
-    });
+    // Ensure the destination files have been passed before the next step    
+    await destinationFilesParsed;
 
     // Aggregate all source streams into the destination stream, with optional intermediate zipping
     await Promise.all(
@@ -161,7 +163,7 @@ class WebProducer {
             // Set success and failure handlers
             source.on("end", () => {
               console.log("profile", "merge ended");
-              resolve();
+              return resolve();
             });
 
             // Set failure handlers
@@ -171,26 +173,32 @@ class WebProducer {
             });
 
             // Account for possible zipping of contents
-            if (config.archiveDestination) {
+            if (config.destination.archive) {
               // Merge streams into a zip file before piping to the destination
-              source.pipe(vzip.zip()).pipe(destinationStream, { end: false });
+              source
+                .pipe(Metafy.process(config.destination))
+                // TODO: Refactor vzip to zip if archive name provide, or simply pass through, allowing us to skip this ugly if/else
+                .pipe(vzip.zip())
+                .pipe(destStreamWritable, { end: false });
             } else {
               // Merge streams directly to the destination
-              source.pipe(destinationStream, { end: false });
+              source
+                .pipe(metafy.resolveUpdates())
+                .pipe(destStreamWritable, { end: false });
             }
+
           })
       )
     );
 
 
+    destStreamWritable.on("end", (x) => {
+      console.log("YYY")
+    });
 
-    // finished(destinationStream, (err) => {
-    //   if (err) {
-    //     console.error("destinationStream errored:", err);
-    //   } else {
-    //     console.log("destinationStream Finished");
-    //   }
-    // });
+    destStreamWritable.end();
+
+
 
   }
 }

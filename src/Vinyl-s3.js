@@ -1,13 +1,14 @@
 ("use strict");
 
 // System dependencies (Built in modules)
-const { Readable, Writable } = require("stream");
+const { Readable } = require("stream");
 
 // Third party dependencies (Typically found in public NPM packages)
 const AWS = require("aws-sdk");
 const micromatch = require("micromatch");
 const Vinyl = require("vinyl");
 
+// Project dependencies
 const Utils = require("./Utils");
 
 /**
@@ -140,10 +141,6 @@ class VinylS3 {
     return readable;
   }
 
-  /**
-   * Stream Vinyl files TO an S3 bucket
-   */
-
 
   /**
    * Allows a readable stream to upload files to S3 for web serving
@@ -166,18 +163,19 @@ class VinylS3 {
         // Construct the slug, aka Key because we pass it to the S3 upload() method.
         const Key = require("path").join(folder, file.relative);
 
-        // Get the Content-Type. Note that extensionless files automatically return text/html
-        const ContentType = Utils.getMimeType(file.extname)
-
-        console.log(Key);
-
         const params = {
           Bucket,
           Key,
           Body: file.contents,
-          ACL: "public-read",
-          ContentType
+          ACL: config.acl || "public-read"
         };
+
+        // Setting the content type is enabled by default but can disabled in webrpoducer.yml
+        if (file.contentType) {
+          params.ContentType = file.contentType;
+        }
+
+        // TODO: regardless of .html status, should we assume to set contenttype? Or do we make it config param
 
         await s3
           .upload(params)
@@ -187,6 +185,9 @@ class VinylS3 {
             throw reason;
           });
         done();
+      },
+      end: function (x) {
+        console.log("FINISHED:", x)
       }
     });
   }

@@ -1,10 +1,18 @@
-const { promises: fs } = require("fs");
+("use strict");
+
+// System dependencies (Built in modules)
+
 const path = require("path");
+const { promises: fs } = require("fs");
 
-
+// Third party dependencies (Typically found in public NPM packages)
 const mime = require("mime/lite");
 
 
+/**
+ * Implements some simple static methods shared across the codebase
+ * @class Utils
+ */
 class Utils {
   /**
    * Empties the specified directories by recursively removing everything and then force recreating
@@ -19,6 +27,8 @@ class Utils {
     }
     return Promise.all(directories.map((directory) => fs.rmdir(directory, { recursive: true })));
   }
+
+
 
 
   /**
