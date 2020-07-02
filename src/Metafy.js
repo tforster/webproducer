@@ -84,6 +84,7 @@ class Metafy {
   parseDestinationFiles(destinationStream) {
     const handles = [];
     const self = this;
+
     return new Promise((resolve, reject) => {
       // Parse the stream and resolve when it is done
       const writable = new Writable({
@@ -103,8 +104,8 @@ class Metafy {
 
       // Resolve the (optional) array of handles
       writable.on("finish", function () {
-        console.log("Finished")
-        resolve(handles);
+        console.log("Finished", self.destinationReads)
+        return resolve(self.destinationReads);
       });
 
       // Setup an error handler

@@ -2,7 +2,7 @@
 ("use strict");
 
 // System dependencies (Built in modules)
-const { finished, Writable } = require("stream");
+//const { finished, Writable } = require("stream");
 
 // Third party dependencies (Typically found in public NPM packages)
 const cleanCSS = require("gulp-clean-css");
@@ -14,7 +14,6 @@ const vfs = require("vinyl-fs");
 // Project dependencies
 const config = require("./Config");
 const GraphQLDataProvider = require("./GraphQLDataProvider");
-const SyncStream = require("./SyncStream");
 const Utils = require("./Utils");
 const vs3 = require("./Vinyl-s3");
 const VHandlebars = require("./Vinyl-Handlebars");
@@ -67,7 +66,8 @@ class WebProducer {
 
     if (this.dest.type === "s3") {
       destStreamWritable = vs3.dest(this.dest);
-      destStreamReadable = vs3.src(this.dest + "/**/*");
+      const z = new vs3(this.dest);
+      destStreamReadable = z.src(this.dest.path + "**/*"); // Remember, S3 doesn't use a leading slash
     } else {
       destStreamWritable = vfs.dest(this.dest.path);
       destStreamReadable = vfs.src(this.dest.path + "/**/*");
@@ -91,7 +91,7 @@ class WebProducer {
 
     // Start getting file meta from dest as a Promise that can be deferred until after the build process
     const destinationFilesParsed = metafy.parseDestinationFiles(destStreamReadable);
-
+    const k = await destinationFilesParsed;
     // Template source is expected to be in a stage specific and lower cased subfolder, eg, /dev, /stage or /prod
     const srcRoot = this.src.base;
 
@@ -158,8 +158,10 @@ class WebProducer {
     await Promise.all(
       streamsToMerge.map(
         // Promisify each Readable Vinyl stream
-        async (source) =>
-          new Promise((resolve, reject) => {
+        async (source) => {
+
+
+          return new Promise((resolve, reject) => {
             // Set success and failure handlers
             source.on("end", () => {
               console.log("profile", "merge ended");
@@ -176,24 +178,32 @@ class WebProducer {
             if (config.destination.archive) {
               // Merge streams into a zip file before piping to the destination
               source
+                // this was going to break anyway coz it's outdated metafy code
                 .pipe(Metafy.process(config.destination))
                 // TODO: Refactor vzip to zip if archive name provide, or simply pass through, allowing us to skip this ugly if/else
                 .pipe(vzip.zip())
                 .pipe(destStreamWritable, { end: false });
             } else {
               // Merge streams directly to the destination
+              console.log("Piping to resolveUpdates()")
               source
                 .pipe(metafy.resolveUpdates())
                 .pipe(destStreamWritable, { end: false });
             }
 
           })
+
+        }
       )
     );
 
 
     destStreamWritable.on("end", (x) => {
-      console.log("YYY")
+      console.log("All done, you can go home now.")
+    });
+
+    destStreamWritable.on("finish", (x) => {
+      console.log("All done, you can go home now.")
     });
 
     destStreamWritable.end();

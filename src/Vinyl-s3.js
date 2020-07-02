@@ -1,7 +1,7 @@
 ("use strict");
 
 // System dependencies (Built in modules)
-const { Readable } = require("stream");
+const { Readable, Writable } = require("stream");
 
 // Third party dependencies (Typically found in public NPM packages)
 const AWS = require("aws-sdk");
