@@ -12,8 +12,10 @@ const terser = require("gulp-terser");
 const vfs = require("vinyl-fs");
 
 // Project dependencies
+const CloudFront = require("./CloudFront");
 const config = require("./Config");
 const GraphQLDataProvider = require("./GraphQLDataProvider");
+const MergeStream = require("./MergeStream");
 const Utils = require("./Utils");
 const vs3 = require("./Vinyl-s3");
 const VHandlebars = require("./Vinyl-Handlebars");
@@ -32,14 +34,14 @@ class WebProducer {
    * @memberof WebProducer
    */
   constructor(configPathOrString) {
-
+    this.startTime = new Date();
+    console.log(`>>> WebProducer started at ${this.startTime.toISOString()}`);
     // set the configuration after parsing the config YAML or file pointing to YAML
     try {
-      this.config = config(configPathOrString)
-    }
-    catch (err) {
+      this.config = config(configPathOrString);
+    } catch (err) {
       // If we don't have config there's no point in continuing
-      console.error("Exiting")
+      console.error("Exiting");
       throw err;
     }
 
@@ -48,7 +50,6 @@ class WebProducer {
     this.dest = Utils.vinylise(this.config.destination);
   }
 
-
   /**
    * Determines and instantiates the correct Vinyl FS or S3 stream objects to handle input and output
    * @returns {object}: An object containing the source and destination stream objects
@@ -56,13 +57,11 @@ class WebProducer {
    */
   _prepareStreams() {
     // Set the sourceStream to either a VinylFS or Vinyl-S3 stream
-    const srcStreamReadable = this.src.type === "s3"
-      ? new vs3(this.src)
-      : vfs;
+    const srcStreamReadable = this.src.type === "s3" ? new vs3(this.src) : vfs;
 
     // Set the readable and writable destination streams to either a VinylFS or Vinyl-S3 stream
     let destStreamWritable;
-    let destStreamReadable;
+    let destStreamReadable; // Used to evaluate existing destination to determine which files to update
 
     if (this.dest.type === "s3") {
       destStreamWritable = vs3.dest(this.dest);
@@ -73,9 +72,8 @@ class WebProducer {
       destStreamReadable = vfs.src(this.dest.path + "/**/*");
     }
 
-    return { srcStreamReadable, destStreamWritable, destStreamReadable }
+    return { srcStreamReadable, destStreamWritable, destStreamReadable };
   }
-
 
   /**
    * Entry point into WebProducer
@@ -91,7 +89,7 @@ class WebProducer {
 
     // Start getting file meta from dest as a Promise that can be deferred until after the build process
     const destinationFilesParsed = metafy.parseDestinationFiles(destStreamReadable);
-    const k = await destinationFilesParsed;
+    //const k = await destinationFilesParsed;
     // Template source is expected to be in a stage specific and lower cased subfolder, eg, /dev, /stage or /prod
     const srcRoot = this.src.base;
 
@@ -99,10 +97,7 @@ class WebProducer {
       // Parallelise fetching data from API, precompiling templates and all from async stream reading
       var [siteData, _] = await Promise.all([
         // We use /db/**/* since we already constructed the S3 Stream with s3://bucket/src/{stage}
-        await GraphQLDataProvider.data(
-          srcStreamReadable.src(`${srcRoot}/db/**/*`),
-          config
-        ),
+        await GraphQLDataProvider.data(srcStreamReadable.src(`${srcRoot}/db/**/*`), config),
         vhandlebars.precompile(srcStreamReadable.src(`${srcRoot}/theme/**/*.hbs`)),
       ]);
       // Quick check to ensure we have actual data to work with
@@ -117,99 +112,62 @@ class WebProducer {
     // Promise.all above resolved with data and precompiled templates from different sources so now we can generate pages.
     const pages = await vhandlebars.build(siteData);
 
-    // Create an array of source streams to merge to the destination stream
-    const streamsToMerge = [
+    // Merge our streams containing loose files, concatenated scripts, concatenated css and generated HTML into one main stream
+    const looseFiles = srcStreamReadable.src([
+      `${srcRoot}/**/*.*`,
+      `!${srcRoot}/db/**`,
+      `!${srcRoot}/scripts/**`,
+      `!${srcRoot}/stylesheets/**`,
+      `!${srcRoot}/theme/**`,
+    ]);
+    looseFiles.name = "looseFiles";
 
-      // Add all files to the stream other than those in folders we are specifically interacting with
-      // ToDo: Consider externalising to webproducer.yml for more control
-      srcStreamReadable.src(
-        [
-          `${srcRoot}/**/*.*`,
-          `!${srcRoot}/db/**`,
-          `!${srcRoot}/scripts/**`,
-          `!${srcRoot}/stylesheets/**`,
-          `!${srcRoot}/theme/**`,
-        ]
-      ),
+    const scripts = srcStreamReadable.src(`${srcRoot}/scripts/**/*.js`).pipe(terser()).pipe(sourcemaps.write("/"));
+    scripts.name = "scripts";
 
-      // Minify JavaScript files and add to the destination stream
-      srcStreamReadable
-        .src(`${srcRoot}/scripts/**/*.js`)
-        .pipe(terser())
-        .pipe(sourcemaps.write("/")),
+    const stylesheets = srcStreamReadable
+      .src(`${srcRoot}/stylesheets/**/*.css`)
+      .pipe(sourcemaps.init())
+      .pipe(cleanCSS())
+      .pipe(sourcemaps.write("/"));
+    stylesheets.name = "stylesheets";
 
-      // Minify CSS files and add to the destination stream
-      srcStreamReadable
-        .src(`${srcRoot}/stylesheets/**/*.css`)
-        .pipe(sourcemaps.init())
-        .pipe(cleanCSS())
-        .pipe(sourcemaps.write("/")),
+    const pagesStream = pages.stream.pipe(minifyHtml({ collapseWhitespace: true, removeComments: true }));
+    pagesStream.name = "pagesStream";
 
-      // Minify HTML files and add to the destination stream
-      pages.stream.pipe(minifyHtml({ collapseWhitespace: true, removeComments: true })),
-    ];
-
-
-
-    // Ensure the destination files have been passed before the next step    
     await destinationFilesParsed;
+    const streams = [looseFiles, scripts, stylesheets, pagesStream];
 
-    // Aggregate all source streams into the destination stream, with optional intermediate zipping
-    await Promise.all(
-      streamsToMerge.map(
-        // Promisify each Readable Vinyl stream
-        async (source) => {
+    const mergedStream = MergeStream(looseFiles, scripts, stylesheets, pagesStream);
 
+    // Wait for the merged files to be prepared and deployed
 
-          return new Promise((resolve, reject) => {
-            // Set success and failure handlers
-            source.on("end", () => {
-              console.log("profile", "merge ended");
-              return resolve();
-            });
+    await new Promise((resolve, reject) => {
+      mergedStream.pipe(metafy.filterDeployableFiles()).pipe(destStreamWritable);
 
-            // Set failure handlers
-            source.on("error", (err) => {
-              console.error("MERGE:", err);
-              reject(err);
-            });
-
-            // Account for possible zipping of contents
-            if (config.destination.archive) {
-              // Merge streams into a zip file before piping to the destination
-              source
-                // this was going to break anyway coz it's outdated metafy code
-                .pipe(Metafy.process(config.destination))
-                // TODO: Refactor vzip to zip if archive name provide, or simply pass through, allowing us to skip this ugly if/else
-                .pipe(vzip.zip())
-                .pipe(destStreamWritable, { end: false });
-            } else {
-              // Merge streams directly to the destination
-              console.log("Piping to resolveUpdates()")
-              source
-                .pipe(metafy.resolveUpdates())
-                .pipe(destStreamWritable, { end: false });
-            }
-
-          })
-
-        }
-      )
-    );
-
-
-    destStreamWritable.on("end", (x) => {
-      console.log("All done, you can go home now.")
+      destStreamWritable.on("finish", async () => {
+        console.log(">>> Finished deploying new and updated files.");
+        resolve();
+      });
     });
 
-    destStreamWritable.on("finish", (x) => {
-      console.log("All done, you can go home now.")
-    });
+    // We want to invalidate ASAP and the risk of the few extra ms here vs deleting files no longer required is ok
+    if (config.destination.webserver && config.destination.webserver.cloudFrontDistributionId) {
+      // CloudFront requires "/" rooted paths, whereas our paths are not "/" rooted elsewhere in this system
+      metafy.destinationUpdates = metafy.destinationUpdates.map((path) => `/${path}`);
 
-    destStreamWritable.end();
+      const retval = await CloudFront.createInvalidation({
+        distributionId: config.destination.webserver.cloudFrontDistributionId,
+        paths: metafy.destinationUpdates,
+        region: this.dest.region,
+      });
+      console.log(`>>> Requested CloudFront invalidation: ${retval.Id}.`);
+    }
 
-
-
+    // delete files
+    // TODO: Implement filesystem agnostic deletion class/method. Consider a branched stream?
+    const endTime = new Date();
+    console.log(`>>> WebProduced finished at ${endTime.toISOString()} (${endTime - this.startTime}ms).`);
   }
 }
 

@@ -186,9 +186,9 @@ class VinylS3 {
           });
         done();
       },
-      end: function (x) {
-        console.log("FINISHED:", x)
-      }
+      // end: function (x) {
+      //   console.log("FINISHED:", x)
+      // }
     });
   }
 

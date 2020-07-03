@@ -2,7 +2,7 @@
 
 // System dependencies (Built in modules)
 const crypto = require("crypto");
-const { Transform, Readable, Writable } = require('stream');
+const { Transform, Readable, Writable } = require("stream");
 
 // Third party dependencies (Typically found in public NPM packages)
 
@@ -16,7 +16,6 @@ const Utils = require("./Utils");
  */
 class Metafy {
   constructor() {
-
     this.destinationReads = {};
     this.destinationDeletes = [];
     this.destinationUpdates = [];
@@ -36,7 +35,6 @@ class Metafy {
     return shasum.digest("hex");
   }
 
-
   /**
    * Helper function to set various additional properties on a VinylFile
    *
@@ -47,7 +45,6 @@ class Metafy {
    * @memberof Metafy
    */
   _setProperties(vinylFile, options) {
-
     if (!vinylFile.isDirectory()) {
       if (options.setHttpExtension) {
         if (vinylFile.extname === "") {
@@ -71,9 +68,8 @@ class Metafy {
     return vinylFile;
   }
 
-
   /**
-   * Parses the stream containing current state of destination to build an array of hashes required to calculate synchronisation 
+   * Parses the stream containing current state of destination to build an array of hashes required to calculate synchronisation
    *
    * @static
    * @param {StreamReadable} destinationStream: Stream containing all the current files that exist in the destination prior to build
@@ -82,7 +78,6 @@ class Metafy {
    * @memberof Metafy
    */
   parseDestinationFiles(destinationStream) {
-    const handles = [];
     const self = this;
 
     return new Promise((resolve, reject) => {
@@ -96,38 +91,36 @@ class Metafy {
           // Add a "lite" vinyl object to the array so we can track path, hash, size and whether it is a file or directory
           const { relative, hash, size, directory = vinylFile.isDirectory() } = vinylFile;
           self.destinationReads[relative] = { relative, hash, size, directory };
-
+          //console.log("---", vinylFile.relative);
           //console.log(path, hash, size, directory)
           done(false, vinylFile);
-        }
+        },
       });
 
       // Resolve the (optional) array of handles
       writable.on("finish", function () {
-        console.log("Finished", self.destinationReads)
         return resolve(self.destinationReads);
       });
 
       // Setup an error handler
       writable.on("error", function (err) {
-        console.log("error")
-        throw err
+        console.log("error");
+        throw err;
       });
 
       // Start the pipe flowing
       destinationStream.pipe(writable);
-    })
+    });
   }
 
-
   // Returns a stream just the vinylFiles that need to be updated (VFS and S3)
-  resolveUpdates() {
+  filterDeployableFiles() {
     const self = this;
 
     const transform = new Transform({
       objectMode: true,
       transform: function (vinylFile, _, done) {
-        vinylFile = self._setProperties(vinylFile, { setContentTypeHeader: true, setHash: true })
+        vinylFile = self._setProperties(vinylFile, { setContentTypeHeader: true, setHash: true });
         const { relative, hash } = vinylFile;
         //        console.log(relative)
         if (self.destinationReads[relative]) {
@@ -135,19 +128,19 @@ class Metafy {
           if (self.destinationReads[relative].hash !== hash) {
             // vinylFile is different than the original
             self.destinationUpdates.push(relative);
-            console.log("UPDATE:", relative, self.destinationReads[relative].hash, hash)
-            done(false, vinylFile)
+            //          console.log("UPDATE:", relative, self.destinationReads[relative].hash, hash)
+            done(false, vinylFile);
           } else {
-            // 
+            //
             done(false);
           }
         } else {
           // vinylFile is new
           self.destinationCreates.push(relative);
-          console.log("CREATE:", relative)
+          //          console.log("CREATE:", relative)
           done(false, vinylFile);
         }
-      }
+      },
     });
 
     transform.on("error", (err) => {
@@ -155,32 +148,19 @@ class Metafy {
     });
 
     transform.on("finish", () => {
-      // console.log("finished resolving and deploy changes.")
+      // Note: This code hits once for each streamsToMerge[] sourceStream array element
+      console.log(">>> Finished filtering deployable files.");
+      // console.log(this.destinationReads)
       // console.log(this.destinationUpdates)
       // console.log(this.destinationCreates)
+      // p(this.destinationUpdates);
     });
 
-    transform.on("close", () => {
-      console.log("CLSOE")
-    })
     return transform;
   }
 
-
-
   // Returns the list of destination files to be deleted (VFS and S3)
-  resolveDeletes() {
-
-  }
-
-  // Returns the list of paths to send to CloudFront to invalidate (S3+CloudFront only)
-  resolveInvalidations() {
-
-  }
-
-
-
-
+  resolveDeletes() { }
 }
 
 module.exports = Metafy;
