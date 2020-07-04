@@ -8,7 +8,6 @@ const { promises: fs } = require("fs");
 // Third party dependencies (Typically found in public NPM packages)
 const mime = require("mime/lite");
 
-
 /**
  * Implements some simple static methods shared across the codebase
  * @class Utils
@@ -28,9 +27,6 @@ class Utils {
     return Promise.all(directories.map((directory) => fs.rmdir(directory, { recursive: true })));
   }
 
-
-
-
   /**
    * Returns the mimetype matching the supplied extension. Empty extensions are presumed to come from .html slugs.
    * @static
@@ -38,23 +34,23 @@ class Utils {
    * @returns {string}:   The corresponding mimetype, or text/html if no extension was provided.
    * @memberof Utils
    */
-  static getMimeType(ext) {
-    return ext ? mime.getType(ext) : "text/html";
+  static getMimeType(path) {
+    const mimeType = mime.getType(path);
+    return mimeType || "text/html";
   }
-
 
   /**
    * Parses the supplied data object into a Vinyl-like structure that can be used with the Vinyl constructor later
-   * 
+   *
    * @static
    * @param {object} fileDescriptor:  A data object typically obtained from config.yml describing a source or destination
    * @returns
    * @memberof Utils
    */
   static vinylise(fileDescriptor) {
-    let vinylize = {
+    const vinylize = {
       type: fileDescriptor.type,
-      path: fileDescriptor.path.toLowerCase()
+      path: fileDescriptor.path.toLowerCase(),
     };
 
     switch (vinylize.type) {
@@ -64,7 +60,7 @@ class Utils {
         vinylize.region = fileDescriptor.region;
         const u = new URL(vinylize.path);
         vinylize.bucket = u.host;
-        vinylize.path = u.pathname.slice(1);  // S3 keys are not rooted at /. E.g. there is no leading / in an S3 key.
+        vinylize.path = u.pathname.slice(1); // S3 keys are not rooted at /. E.g. there is no leading / in an S3 key.
         break;
       case "filesystem":
         vinylize.path = path.resolve(vinylize.path);

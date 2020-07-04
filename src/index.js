@@ -1,9 +1,6 @@
 /* eslint-disable no-restricted-syntax */
 ("use strict");
 
-// System dependencies (Built in modules)
-//const { finished, Writable } = require("stream");
-
 // Third party dependencies (Typically found in public NPM packages)
 const cleanCSS = require("gulp-clean-css");
 const minifyHtml = require("gulp-htmlmin");
@@ -13,14 +10,13 @@ const vfs = require("vinyl-fs");
 
 // Project dependencies
 const CloudFront = require("./CloudFront");
-const config = require("./Config");
+const Config = require("./Config");
 const GraphQLDataProvider = require("./GraphQLDataProvider");
 const MergeStream = require("./MergeStream");
 const Utils = require("./Utils");
 const vs3 = require("./Vinyl-s3");
 const VHandlebars = require("./Vinyl-Handlebars");
-const vzip = require("./Vinyl-zip");
-const Metafy = require("./Metafy");
+const StreamUtils = require("./StreamUtils");
 
 /**
  * Website and web-app agnostic class implementing a "build" process that merges handlebars templates with GraphQL data to produce
@@ -29,25 +25,27 @@ const Metafy = require("./Metafy");
  */
 class WebProducer {
   /**
-   *Creates an instance of Build.
-   * @param {object} options: Runtime options passed in from project implementation
+   *Creates an instance of WebProducer.
+   * @param {string} configPathOrString:  String of YAML or path to a YAML file containing configuration settings
    * @memberof WebProducer
    */
   constructor(configPathOrString) {
     this.startTime = new Date();
     console.log(`>>> WebProducer started at ${this.startTime.toISOString()}`);
+
     // set the configuration after parsing the config YAML or file pointing to YAML
     try {
-      this.config = config(configPathOrString);
+      this.config = Config.getConfig(configPathOrString);
     } catch (err) {
       // If we don't have config there's no point in continuing
-      console.error("Exiting");
-      throw err;
+      throw new Error("Could not find any configuration");
     }
 
     // Get configuration of the source and destination folders (could local, S3, etc)
     this.src = Utils.vinylise(this.config.templateSource);
     this.dest = Utils.vinylise(this.config.destination);
+    console.log(`>>> src:  ${this.src.path}`);
+    console.log(`>>> dest: ${this.dest.path}`);
   }
 
   /**
@@ -58,20 +56,20 @@ class WebProducer {
   _prepareStreams() {
     // Set the sourceStream to either a VinylFS or Vinyl-S3 stream
     const srcStreamReadable = this.src.type === "s3" ? new vs3(this.src) : vfs;
-
     // Set the readable and writable destination streams to either a VinylFS or Vinyl-S3 stream
     let destStreamWritable;
-    let destStreamReadable; // Used to evaluate existing destination to determine which files to update
+    // Read the contents of the destination pre-deployment so we can calculate a diff and only deploy changed files
+    let destStreamReadable;
 
     if (this.dest.type === "s3") {
       destStreamWritable = vs3.dest(this.dest);
-      const z = new vs3(this.dest);
-      destStreamReadable = z.src(this.dest.path + "**/*"); // Remember, S3 doesn't use a leading slash
+      destStreamReadable = new vs3(this.dest).src(this.dest.path + "**/*", true); // Remember, S3 doesn't use a leading slash
     } else {
       destStreamWritable = vfs.dest(this.dest.path);
       destStreamReadable = vfs.src(this.dest.path + "/**/*");
     }
 
+    // Return the three streams ready for use
     return { srcStreamReadable, destStreamWritable, destStreamReadable };
   }
 
@@ -80,24 +78,27 @@ class WebProducer {
    * @memberof WebProducer
    */
   async main() {
+    // Shortcut to access config
     const config = this.config;
+    // Instantiate various classes
     const vhandlebars = new VHandlebars();
-    const metafy = new Metafy();
+    const streamUtils = new StreamUtils();
 
     // Setup the FS and/or S3 streams for retrieving and uploading content
     const { srcStreamReadable, destStreamWritable, destStreamReadable } = this._prepareStreams();
 
     // Start getting file meta from dest as a Promise that can be deferred until after the build process
-    const destinationFilesParsed = metafy.parseDestinationFiles(destStreamReadable);
-    //const k = await destinationFilesParsed;
+    const destinationFilesParsed = streamUtils.parseDestinationFiles(destStreamReadable);
+
     // Template source is expected to be in a stage specific and lower cased subfolder, eg, /dev, /stage or /prod
     const srcRoot = this.src.base;
 
     try {
       // Parallelise fetching data from API, precompiling templates and all from async stream reading
       var [siteData, _] = await Promise.all([
-        // We use /db/**/* since we already constructed the S3 Stream with s3://bucket/src/{stage}
+        // Wait for our GraphQL data that in turn needs to wait for the contents of graphql.query and transform.js
         await GraphQLDataProvider.data(srcStreamReadable.src(`${srcRoot}/db/**/*`), config),
+        // Precompile all .hbs templates into the vhandlebars object from the stream
         vhandlebars.precompile(srcStreamReadable.src(`${srcRoot}/theme/**/*.hbs`)),
       ]);
       // Quick check to ensure we have actual data to work with
@@ -113,6 +114,9 @@ class WebProducer {
     const pages = await vhandlebars.build(siteData);
 
     // Merge our streams containing loose files, concatenated scripts, concatenated css and generated HTML into one main stream
+    // TODO: Make name a parameter than can be passed in on the .src() method for cleaner code here
+
+    // Loose files are all non-transformable resources like fonts, robots.txt, etc. Note that we ignore db, scripts, theme, etc.
     const looseFiles = srcStreamReadable.src([
       `${srcRoot}/**/*.*`,
       `!${srcRoot}/db/**`,
@@ -122,9 +126,11 @@ class WebProducer {
     ]);
     looseFiles.name = "looseFiles";
 
+    // We ignored scripts above as they require unique handling
     const scripts = srcStreamReadable.src(`${srcRoot}/scripts/**/*.js`).pipe(terser()).pipe(sourcemaps.write("/"));
     scripts.name = "scripts";
 
+    // We ignored stylesheets above as they require unique handling
     const stylesheets = srcStreamReadable
       .src(`${srcRoot}/stylesheets/**/*.css`)
       .pipe(sourcemaps.init())
@@ -132,18 +138,22 @@ class WebProducer {
       .pipe(sourcemaps.write("/"));
     stylesheets.name = "stylesheets";
 
+    // We ignored the stream of handlebars theme files as they were generated earlier and require additional unique handling here
     const pagesStream = pages.stream.pipe(minifyHtml({ collapseWhitespace: true, removeComments: true }));
     pagesStream.name = "pagesStream";
 
+    // Promise for parsing destination files deferred to last moment here to allow for async processing. Note that S3 is a long time
     await destinationFilesParsed;
+
+    // Merge all the various input streams into one main stream to be parsed
     const streams = [looseFiles, scripts, stylesheets, pagesStream];
+    // MergedStream is new in 0.5.0 and replaces the previous and more complicated Promise-based code block
+    const mergedStream = new MergeStream(streams);
 
-    const mergedStream = MergeStream(looseFiles, scripts, stylesheets, pagesStream);
-
-    // Wait for the merged files to be prepared and deployed
-
+    // Don't move beyond this next block until we know everything hasa been written to the destination
     await new Promise((resolve, reject) => {
-      mergedStream.pipe(metafy.filterDeployableFiles()).pipe(destStreamWritable);
+      // filterDeployableFiles() compares built files to ETags of existing files to determine the change delta to actually deploy.
+      mergedStream.pipe(streamUtils.filterDeployableFiles()).pipe(destStreamWritable);
 
       destStreamWritable.on("finish", async () => {
         console.log(">>> Finished deploying new and updated files.");
@@ -152,13 +162,13 @@ class WebProducer {
     });
 
     // We want to invalidate ASAP and the risk of the few extra ms here vs deleting files no longer required is ok
-    if (config.destination.webserver && config.destination.webserver.cloudFrontDistributionId) {
+    if (config.destination.webserver && config.destination.webserver.cloudFrontDistributionId && streamUtils.destinationUpdates) {
       // CloudFront requires "/" rooted paths, whereas our paths are not "/" rooted elsewhere in this system
-      metafy.destinationUpdates = metafy.destinationUpdates.map((path) => `/${path}`);
+      streamUtils.destinationUpdates = streamUtils.destinationUpdates.map((path) => `/${path}`);
 
       const retval = await CloudFront.createInvalidation({
         distributionId: config.destination.webserver.cloudFrontDistributionId,
-        paths: metafy.destinationUpdates,
+        paths: streamUtils.destinationUpdates,
         region: this.dest.region,
       });
       console.log(`>>> Requested CloudFront invalidation: ${retval.Id}.`);

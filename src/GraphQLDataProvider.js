@@ -22,6 +22,9 @@ class GraphQLDataProvider {
    * @memberof GraphQLDataProvider
    */
   static async _fetchData(options) {
+    if (!options.token || options.token === "undefined") {
+      throw new Error("token not provided");
+    }
     if (!options.query || !options.transform) {
       throw new Error("query and/or transform not provided.");
     }
@@ -113,9 +116,9 @@ class GraphQLDataProvider {
           } catch (err) {
             console.error("_fetchData():", err);
             if (err.errors && err.errors[0] && err.errors[0].message && err.errors[0].message === "No query string was present") {
-              console.error("Check that the GraphQL query was passed properly.")
+              console.error("Check that the GraphQL query was passed properly.");
             }
-            return reject(err)
+            return reject(err);
           }
         });
 

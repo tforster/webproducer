@@ -2,20 +2,22 @@
 
 // System dependencies (Built in modules)
 const crypto = require("crypto");
-const { Transform, Readable, Writable } = require("stream");
-
-// Third party dependencies (Typically found in public NPM packages)
+const { Transform, Writable } = require("stream");
 
 // Project dependencies
 const Utils = require("./Utils");
 
 /**
  * A transform stream to prepare files for web serving by setting headers and configuring slug extenions
- *
- * @class Webify
+ * @class StreamUtils
  */
-class Metafy {
+class StreamUtils {
+  /**
+   *Creates an instance of StreamUtils.
+   * @memberof StreamUtils
+   */
   constructor() {
+    // Set up object/arrays to track files of various states
     this.destinationReads = {};
     this.destinationDeletes = [];
     this.destinationUpdates = [];
@@ -23,14 +25,14 @@ class Metafy {
   }
 
   /**
-   * Get the SHA1 hash of the fileContents
+   * Get the MD5 hash of the fileContents. Note that we opted for MD5 as that is already in use by S3.
    * @static
    * @param {ArrayBuffer} fileContents: Typically found as .contents from a ReadableStream where objectMode = true;
-   * @returns:                          A SHA1 hash of the file contents
+   * @returns:                          A MD5 hash of the file contents
    * @memberof Utils
    */
   _getFileHash(fileContents) {
-    const shasum = crypto.createHash("sha1");
+    const shasum = crypto.createHash("md5");
     shasum.update(fileContents);
     return shasum.digest("hex");
   }
@@ -45,22 +47,28 @@ class Metafy {
    * @memberof Metafy
    */
   _setProperties(vinylFile, options) {
-    if (!vinylFile.isDirectory()) {
+    // ! DO NOT USE vinyl.isDirectory() as it will return false if contents = null. Issuing S3.headObject() returns nulls!!!
+
+    if (vinylFile.contents) {
+      // .HTML extension
       if (options.setHttpExtension) {
         if (vinylFile.extname === "") {
           vinylFile.extname = ".html";
         }
       }
 
+      // ContentType
       if (options.setContentTypeHeader) {
         vinylFile.contentType = Utils.getMimeType(vinylFile.basename);
       }
 
-      if (options.setHash) {
-        vinylFile.hash = this._getFileHash(vinylFile.contents);
+      // ETag. vinylFiles created from S3.headObject() will have the eTag already set
+      if (options.setHash && !vinylFile.eTag) {
+        vinylFile.eTag = this._getFileHash(vinylFile.contents);
       }
 
-      if (options.setFileSize) {
+      // Size (should be content-length?) vinylFiles created from S3.headObject() will have the eTag already set
+      if (options.setFileSize && !vinylFile.size) {
         vinylFile.size = vinylFile.contents.length;
       }
     }
@@ -89,10 +97,8 @@ class Metafy {
           vinylFile = self._setProperties(vinylFile, { setHash: true, setFileSize: true });
 
           // Add a "lite" vinyl object to the array so we can track path, hash, size and whether it is a file or directory
-          const { relative, hash, size, directory = vinylFile.isDirectory() } = vinylFile;
-          self.destinationReads[relative] = { relative, hash, size, directory };
-          //console.log("---", vinylFile.relative);
-          //console.log(path, hash, size, directory)
+          const { relative, eTag, size, directory = vinylFile.isDirectory() } = vinylFile;
+          self.destinationReads[relative] = { relative, eTag, size, directory };
           done(false, vinylFile);
         },
       });
@@ -121,46 +127,37 @@ class Metafy {
       objectMode: true,
       transform: function (vinylFile, _, done) {
         vinylFile = self._setProperties(vinylFile, { setContentTypeHeader: true, setHash: true });
-        const { relative, hash } = vinylFile;
-        //        console.log(relative)
+        const { relative, eTag } = vinylFile;
+
         if (self.destinationReads[relative]) {
           // vinylFile pre-exists
-          if (self.destinationReads[relative].hash !== hash) {
+          if (self.destinationReads[relative].eTag !== eTag) {
             // vinylFile is different than the original
             self.destinationUpdates.push(relative);
-            //          console.log("UPDATE:", relative, self.destinationReads[relative].hash, hash)
+            console.log("UPDATE:", relative, eTag);
             done(false, vinylFile);
           } else {
-            //
             done(false);
           }
         } else {
           // vinylFile is new
           self.destinationCreates.push(relative);
-          //          console.log("CREATE:", relative)
+          console.log("CREATE:", relative);
           done(false, vinylFile);
         }
       },
     });
 
     transform.on("error", (err) => {
-      console.error(err);
+      throw new Error(err);
     });
 
     transform.on("finish", () => {
-      // Note: This code hits once for each streamsToMerge[] sourceStream array element
       console.log(">>> Finished filtering deployable files.");
-      // console.log(this.destinationReads)
-      // console.log(this.destinationUpdates)
-      // console.log(this.destinationCreates)
-      // p(this.destinationUpdates);
     });
 
     return transform;
   }
-
-  // Returns the list of destination files to be deleted (VFS and S3)
-  resolveDeletes() { }
 }
 
-module.exports = Metafy;
+module.exports = StreamUtils;

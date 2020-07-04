@@ -42,7 +42,7 @@ class VinylHandlebars {
         highWaterMark: 64,
       });
 
-      writable._write = function(file, _, done) {
+      writable._write = function (file, _, done) {
         handlebars.templates[file.basename] = handlebars.compile(file.contents.toString());
         done();
       };
