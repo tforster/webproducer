@@ -1,10 +1,6 @@
 /* eslint-disable no-restricted-syntax */
 ("use strict");
 
-// System dependencies (Built in modules)
-const { finished } = require("stream");
-const path = require("path");
-
 // Third party dependencies (Typically found in public NPM packages)
 const cleanCSS = require("gulp-clean-css");
 const minifyHtml = require("gulp-htmlmin");
@@ -13,12 +9,14 @@ const terser = require("gulp-terser");
 const vfs = require("vinyl-fs");
 
 // Project dependencies
+const CloudFront = require("./CloudFront");
+const Config = require("./Config");
 const GraphQLDataProvider = require("./GraphQLDataProvider");
+const MergeStream = require("./MergeStream");
 const Utils = require("./Utils");
 const vs3 = require("./Vinyl-s3");
-const vamplify = require("./Vinyl-Amplify");
 const VHandlebars = require("./Vinyl-Handlebars");
-const vzip = require("./Vinyl-zip");
+const StreamUtils = require("./StreamUtils");
 
 /**
  * Website and web-app agnostic class implementing a "build" process that merges handlebars templates with GraphQL data to produce
@@ -27,94 +25,52 @@ const vzip = require("./Vinyl-zip");
  */
 class WebProducer {
   /**
-   *Creates an instance of Build.
-   * @param {object} options: Runtime options passed in from project implementation
+   *Creates an instance of WebProducer.
+   * @param {string} configPathOrString:  String of YAML or path to a YAML file containing configuration settings
    * @memberof WebProducer
    */
-  constructor(options) {
-    // Set console.log and console.error functionality
-    WebProducer._setLogging(options.logLevel);
-    this.options = options;
+  constructor(configPathOrString) {
+    this.startTime = new Date();
+    console.log(`>>> WebProducer started at ${this.startTime.toISOString()}`);
 
-    // Check that a stage value was provided.
-    if (!this.options.stage) {
-      throw new Error("The stage is not defined");
+    // set the configuration after parsing the config YAML or file pointing to YAML
+    try {
+      this.config = Config.getConfig(configPathOrString);
+    } catch (err) {
+      // If we don't have config there's no point in continuing
+      throw new Error("Could not find any configuration");
     }
 
-    //this.templateSource = this._vinylesque(options.templateSource);
-    this.destination = this._vinylesque(options.destination);
-
-    // Name of S3 bucket to upload this.dist contents to
-    this.amplify = options.amplify;
-    // Additional AWS options, including ./aws/credentials profile
-    this.aws = options.aws;
-    // READ-ONLY token to access CMS
-    this.datoCMSToken = options.datoCMSToken;
-    // Amplify appId
-    this.appId = options.appId;
-    // Determine whether to use draft or published data
-    this.preview = options.preview;
-    // Initialise the Handlebars helper class
-    //this.hb = new HandlebarsHelper();
+    // Get configuration of the source and destination folders (could local, S3, etc)
+    this.src = Utils.vinylise(this.config.templateSource);
+    this.dest = Utils.vinylise(this.config.destination);
+    console.log(`>>> src:  ${this.src.path}`);
+    console.log(`>>> dest: ${this.dest.path}`);
   }
 
   /**
-   * Parses the supplied metaData string into a Vinyl-like structure that can be used with the Vinyl constructor later
-   * @param {string} metaData:  An S3 URL, or an absolute path, or a relative path
-   * @returns:                  A lean object that can be used in a Vinyl file constructor with additional properties
+   * Determines and instantiates the correct Vinyl FS or S3 stream objects to handle input and output
+   * @returns {object}: An object containing the source and destination stream objects
    * @memberof WebProducer
    */
-  _vinylesque(metaData) {
-    let vinylesque = {};
+  _prepareStreams() {
+    // Set the sourceStream to either a VinylFS or Vinyl-S3 stream
+    const srcStreamReadable = this.src.type === "s3" ? new vs3(this.src) : vfs;
+    // Set the readable and writable destination streams to either a VinylFS or Vinyl-S3 stream
+    let destStreamWritable;
+    // Read the contents of the destination pre-deployment so we can calculate a diff and only deploy changed files
+    let destStreamReadable;
 
-    if (typeof metaData === "object") {
-      // Assume an S3 object
-      vinylesque = { ...metaData };
-      vinylesque.path = metaData.key || "";
+    if (this.dest.type === "s3") {
+      destStreamWritable = vs3.dest(this.dest);
+      destStreamReadable = new vs3(this.dest).src(this.dest.path + "**/*", true); // Remember, S3 doesn't use a leading slash
     } else {
-      // Assume a file path string
-      vinylesque.path = path.resolve(metaData);
-    }
-    // Calculate the Vinyl base.
-    // ToDo: Determine if this is needed when we create legit Vinyl file
-    vinylesque.base = path.dirname(vinylesque.path);
-
-    // Use RegEx to determine if last path segment is a filename (at least one "." must be present)
-    const matches = vinylesque.path.match(/\/[^.^\/]*$/g);
-    if (matches) {
-      // Is a directory
-      vinylesque.stat = { mode: 16384 };
-    } else {
-      // Is a file
-      vinylesque.stat = { mode: 32768 };
-      vinylesque.filename = path.basename(vinylesque.path);
+      destStreamWritable = vfs.dest(this.dest.path);
+      destStreamReadable = vfs.src(this.dest.path + "/**/*");
     }
 
-    return vinylesque;
-  }
-
-  /**
-   * Takes advantage of the global nature of console methods to manage logging verbosity to CloudWatch (receiver of stdOut and stdErr)
-   * @static
-   * @param {*} logLevel
-   * @memberof WebProducer
-   */
-  static _setLogging(logLevel) {
-    // Prevent WP from writing to stdOut, stdErr, etc as it is a blocking synchronous operation and also fills up CloudWatch
-    const verbosity = (logLevel || "none").toLowerCase();
-    switch (verbosity) {
-      case "all":
-        // Show logs and errors
-        break;
-      case "errors":
-        // Show errors
-        console.log = () => {};
-        break;
-      default:
-        // Show nothing
-        console.error = () => {};
-        console.log = () => {};
-    }
+    // Return the three streams ready for use
+    return { srcStreamReadable, destStreamWritable, destStreamReadable };
   }
 
   /**
@@ -122,38 +78,28 @@ class WebProducer {
    * @memberof WebProducer
    */
   async main() {
-    const options = this.options;
+    // Shortcut to access config
+    const config = this.config;
+    // Instantiate various classes
     const vhandlebars = new VHandlebars();
+    const streamUtils = new StreamUtils();
 
-    // Clear the destination ready to receive new files. We do not currently support synchronisation or merging to destination.
-    if (options.destination.Bucket) {
-      // Destination variable references an S3 bucket
-      // ToDo: Consider a way of emptying or synchronising destination buckets
-    } else {
-      // Destination variable references a filesystem path
-      await Utils.emptyDirectories(options.destination);
-    }
+    // Setup the FS and/or S3 streams for retrieving and uploading content
+    const { srcStreamReadable, destStreamWritable, destStreamReadable } = this._prepareStreams();
 
-    // Point the source stream to either S3 (vs3) or the local filesystem (vfs)
-    // ToDo: Refactor Vinyl-S3 to use the factory pattern so we don't have to re-instance it. Then it can be used interchangeably with vfs.
-    if (options.templateSource.Bucket) {
-      // Stream from AWS S3
-      //var sourceStream = new vs3(options.templateSource);
-      var sourceStream = new vs3(options.templateSource);
-      var tempPrefix = options.stage;
-    } else {
-      // Stream from the local filesystem
-      var sourceStream = vfs; //.dest(options.templateSource);
-      var tempPrefix = options.templateSource;
-    }
+    // Start getting file meta from dest as a Promise that can be deferred until after the build process
+    const destinationFilesParsed = streamUtils.parseDestinationFiles(destStreamReadable);
 
-    console.log("profile", "before data");
+    // Template source is expected to be in a stage specific and lower cased subfolder, eg, /dev, /stage or /prod
+    const srcRoot = this.src.base;
 
     try {
       // Parallelise fetching data from API, precompiling templates and all from async stream reading
       var [siteData, _] = await Promise.all([
-        await GraphQLDataProvider.data(sourceStream.src([`${tempPrefix}/db/**/*`]), options),
-        vhandlebars.precompile(sourceStream.src(`${tempPrefix}/theme/**/*.hbs`)),
+        // Wait for our GraphQL data that in turn needs to wait for the contents of graphql.query and transform.js
+        await GraphQLDataProvider.data(srcStreamReadable.src(`${srcRoot}/db/**/*`), config),
+        // Precompile all .hbs templates into the vhandlebars object from the stream
+        vhandlebars.precompile(srcStreamReadable.src(`${srcRoot}/theme/**/*.hbs`)),
       ]);
       // Quick check to ensure we have actual data to work with
       if (!siteData || Object.entries(siteData).length === 0) {
@@ -163,107 +109,75 @@ class WebProducer {
       console.error(err);
       throw err;
     }
-    console.log("profile", "after data");
 
     // Promise.all above resolved with data and precompiled templates from different sources so now we can generate pages.
     const pages = await vhandlebars.build(siteData);
-    console.log("profile", "after build");
 
-    // ToDo: vs3 below should become a variable that can point to either vfs or vs3
-    // e.g. const stream = vs3(options.templateSource) || vfs(options.templateSource)
+    // Merge our streams containing loose files, concatenated scripts, concatenated css and generated HTML into one main stream
+    // TODO: Make name a parameter than can be passed in on the .src() method for cleaner code here
 
-    const streamsToMerge = [
-      // Add all files to the stream other than those in folders we are specifically interacting with
-      sourceStream.src(
-        [
-          `${tempPrefix}/**/*.*`,
-          `!${tempPrefix}/db/**`,
-          `!${tempPrefix}/scripts/**`,
-          `!${tempPrefix}/stylesheets/**`,
-          `!${tempPrefix}/theme/**`,
-        ],
-        "stage/"
-      ),
-      // Minify JavaScript files and add to the stream
-      sourceStream
-        .src(`${tempPrefix}/scripts/**/*.js`, "stage/scripts/")
-        .pipe(terser())
-        .pipe(sourcemaps.write("/")),
-      // Minify CSS files and add to the stream
-      sourceStream
-        .src(`${tempPrefix}/stylesheets/**/*.css`, "stage/stylesheets/")
-        .pipe(sourcemaps.init())
-        .pipe(cleanCSS())
-        .pipe(sourcemaps.write("/")),
-      // Minify HTML files and add to the stream
-      pages.stream.pipe(minifyHtml({ collapseWhitespace: true, removeComments: true })),
-    ];
+    // Loose files are all non-transformable resources like fonts, robots.txt, etc. Note that we ignore db, scripts, theme, etc.
+    const looseFiles = srcStreamReadable.src([
+      `${srcRoot}/**/*.*`,
+      `!${srcRoot}/db/**`,
+      `!${srcRoot}/scripts/**`,
+      `!${srcRoot}/stylesheets/**`,
+      `!${srcRoot}/theme/**`,
+    ]);
+    looseFiles.name = "looseFiles";
 
-    console.log("profile", "after merge");
+    // We ignored scripts above as they require unique handling
+    const scripts = srcStreamReadable.src(`${srcRoot}/scripts/**/*.js`).pipe(terser()).pipe(sourcemaps.write("/"));
+    scripts.name = "scripts";
 
-    // Set the destinationStream to either a VinylFS or Vinyl-S3 stream
-    const destinationStream = this.destination.Bucket
-      ? new vs3(options.destination).dest(options.destination.Bucket)
-      : vfs.dest(options.destination);
+    // We ignored stylesheets above as they require unique handling
+    const stylesheets = srcStreamReadable
+      .src(`${srcRoot}/stylesheets/**/*.css`)
+      .pipe(sourcemaps.init())
+      .pipe(cleanCSS())
+      .pipe(sourcemaps.write("/"));
+    stylesheets.name = "stylesheets";
 
-    // Aggregate all source streams into the destination stream, with optional intermediate zipping
-    await Promise.all(
-      streamsToMerge.map(
-        // Promisify each Readable Vinyl stream
-        async (source) =>
-          new Promise((resolve, reject) => {
-            // Set success and failure handlers
-            source.on("end", () => {
-              console.log("profile", "merge ended");
-              resolve();
-            });
+    // We ignored the stream of handlebars theme files as they were generated earlier and require additional unique handling here
+    const pagesStream = pages.stream.pipe(minifyHtml({ collapseWhitespace: true, removeComments: true }));
+    pagesStream.name = "pagesStream";
 
-            // Set failure handlers
-            source.on("error", (err) => {
-              console.error("MERGE:", err);
-              reject(err);
-            });
+    // Promise for parsing destination files deferred to last moment here to allow for async processing. Note that S3 is a long time
+    await destinationFilesParsed;
 
-            // Account for possible zipping of contents
-            if (options.archiveDestination) {
-              // Merge streams into a zip file before piping to the destination
-              source.pipe(vzip.zip()).pipe(destinationStream, { end: false });
-            } else {
-              // Merge streams directly to the destination
-              source.pipe(destinationStream, { end: false });
-            }
-          })
-      )
-    );
+    // Merge all the various input streams into one main stream to be parsed
+    const streams = [looseFiles, scripts, stylesheets, pagesStream];
+    // MergedStream is new in 0.5.0 and replaces the previous and more complicated Promise-based code block
+    const mergedStream = new MergeStream(streams);
 
-    finished(destinationStream, (err) => {
-      if (err) {
-        console.error("destinationStream errored:", err);
-      }
+    // Don't move beyond this next block until we know everything hasa been written to the destination
+    await new Promise((resolve, reject) => {
+      // filterDeployableFiles() compares built files to ETags of existing files to determine the change delta to actually deploy.
+      mergedStream.pipe(streamUtils.filterDeployableFiles()).pipe(destStreamWritable);
+
+      destStreamWritable.on("finish", async () => {
+        console.log(">>> Finished deploying new and updated files.");
+        resolve();
+      });
     });
 
-    // Should we also deploy to Amplify?
-    if (options.amplifyDeploy) {
-      console.log("profile", "amplifyDeploy starting");
-      // Call the Amplify deploy endpoint which is API asynchnronous!
-      // ToDo: Determine how to follow deploy progress and report back to here. Currently deploy is fire-and-forget!!
-      const deployDetails = await vamplify.deploy(
-        {
-          appId: options.appId,
-          stage: options.stage,
-          // Note that Amplify is not available in all regions yet, including ca-central-1. Force to us-east-1 for now.
-          aws: {
-            Bucket: options.amplifyDeploy.Bucket,
-            key: options.amplifyDeploy.key,
-            bucketRegion: options.amplifyDeploy.region,
-            amplifyRegion: "us-east-1",
-          },
-        },
-        destinationStream
-      );
+    // We want to invalidate ASAP and the risk of the few extra ms here vs deleting files no longer required is ok
+    if (config.destination.webserver && config.destination.webserver.cloudFrontDistributionId && streamUtils.destinationUpdates) {
+      // CloudFront requires "/" rooted paths, whereas our paths are not "/" rooted elsewhere in this system
+      streamUtils.destinationUpdates = streamUtils.destinationUpdates.map((path) => `/${path}`);
 
-      console.log("Amplify deployment job:", deployDetails);
+      const retval = await CloudFront.createInvalidation({
+        distributionId: config.destination.webserver.cloudFrontDistributionId,
+        paths: streamUtils.destinationUpdates,
+        region: this.dest.region,
+      });
+      console.log(`>>> Requested CloudFront invalidation: ${retval.Id}.`);
     }
+
+    // delete files
+    // TODO: Implement filesystem agnostic deletion class/method. Consider a branched stream?
+    const endTime = new Date();
+    console.log(`>>> WebProduced finished at ${endTime.toISOString()} (${endTime - this.startTime}ms).`);
   }
 }
 

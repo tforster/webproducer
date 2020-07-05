@@ -9,100 +9,94 @@ The current version is dependent upon the Amazon AWS stack, including Amplify, I
 The core of the module is a NodeJS Lambda function. This function is intended to act as the endpoint for a webhook from your preferred CMS. Changing content in the CMS should trigger the webhook which will then
 
 1. Fetch the full content from the CMS
-2. Load and register the theme
-3. Merge the content with the theme to produce raw output
-4. Process the raw output to minify all HTML, CSS and JavaScript files
-5. Create a sitemap.xml file
-6. Create any optional RSS files if syndicated content is detected
-7. Zip the content into a single distributable
-8. Upload the distributable to an S3 bucket
-9. Tell Amplify to deploy the distributable from the bucket
+2. Fetch the list of existing files and their ETags
+3. Load and register the theme
+4. Merge the content with the theme to produce raw output
+5. Process the raw output to minify all HTML, CSS and JavaScript files
+6. Create a sitemap.xml file
+7. Create any optional RSS files if syndicated content is detected
+8. Compare built files to list fetched in step 2 and build a difference
+9. Stream the difference to the target
+10. If the target is an S3 bucket and a CloudFront id has been specified then CloudFront will be invalidated
 
-## Installation
+## Prerequisites
 
-WebProducer can be installed as a runtime dependency by adding to your package.json
+The versions listed for these prerequisites are current at the time of writing. More recent versions will likely work but "your mileage may vary".
 
-```bash
-  ...
-  "dependencies": {
-    "@tforster/webproducer": "git+ssh://git@github.com/tforster/webproducer.git",
-    ...
-  },
-  ...
-```
+- A good code editor.
+- Node.js v12.13.0&dagger; and NPM 6.14.5
+- Git 2.25
+
+&dagger; WebProducer is often used in AWS Lambda FaaS. The current hightest Node runtime version supported by AWS is v12.
+
+## Setup and Configuration
+
+Clone this repository as your new project `git clone git@github.com:tforster/webproducer.git ~/dev/`
 
 ## Usage
 
-1. Install required dependencies with `npm i`
-1. Create config.js and .env files
+1. Install using your preferred package manager. E.g. `npm i -S git+ssh://git@github.com/tforster/webproducer.git`
+1. Create webproducer.yml. The following example shows multiple formats for templateSource and destination. In practice only one can be used at a time.
 
-```javascript
-// config.js
+   ```yml
+   dataSource:
+     ## GraphQL query
+     type: graphql
+     path: https://graphql.datocms.com/
+     token: ${env:GRAPHQL_API_TOKEN}
 
-require('dotenv').config();
+   templateSource:
+     ## AWS S3
+     type: s3
+     path: s3://wp.somebucket.com/src/${env:STAGE}
+     region: us-east-1
 
-module.exports = {
-  preview: true,
-  graphQL: {
-    apiToken: process.env['GRAPHQL_API_TOKEN'],
-    apiEndpoint: process.env['GRAPHQL_API_ENDPOINT'],
-  },
-  logLevel: 'ALL',
-  archiveDestination: false,
-  appId: process.env['AMPLIFY_APP_ID'],
-  stage: 'stage',
+     ## Local filesystem
+     type: filesystem
+     path: ./src
 
-  templateSource: './src',
-  destination: './dist',
-};
-```
+   destination:
+     ## Local filesystem
+     type: filesystem
+     path: ./dist
+     archive: false
 
-```bash
-# .env
+     ## AWS S3
+     type: s3
+     path: s3://www.somebucket.com
+     region: us-east-1
+     archive: false # default
+     setHttpExtension: false # default
+     acl: public-read # default
+     deleteOnSync: true # default
+     webserver: # optional
+       setContentTypeHeader: true # default
+       cloudFrontDistributionId: EZP3VGJ7GV1RO # optional
 
-GRAPHQL_API_TOKEN=xxxxxxxxxxxxxxxxxxxxxxxxxxxxx     # Authentication token provided by your GraphQL provider
-GRAPHQL_API_ENDPOINT={https GraphQL endpoint}       # GraphQL endpoint
-AMPLIFY_APP_ID=xxxxxxxxxxxxxx                       # AWS Amplify application id if deploying to AWS Amplify
-LOG_LEVEL=ALL                                       # Logging verbosity
-DEPLOY_BUCKET={bucket-name}                         # AWS bucket to store built artifacts if deploying to AWS Amplify
-DEPLOY_PROFILE={aws-profile-name}                   # AWS profile name from ~/.aws/credentials
-```
+    # preview is currently tightly bound to the DatoCMS implementation for specifying draft vs published
+    preview: ${env:PREVIEW}
+   ```
 
-## Built With
+1. Create .env
 
-The following is a list of the technologies used to develop and manage this project.
-
-| Tool                                                                                                              | Description                                                                                                                        |
-| ----------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| [AWS-SDK](https://aws.amazon.com/sdk-for-node-js/)                                                                | Helps orchestrate S3 and Cloudfront management                                                                                     |
-| [Coffee](https://en.wikipedia.org/wiki/Coffee)                                                                    | A good source of [C8H10N4O2](https://pubchem.ncbi.nlm.nih.gov/compound/caffeine)                                                   |
-| [DatoCMS](https://www.datocms.com)                                                                                | A GraphQL native CaaS                                                                                                              |
-| [Git 2.25.1](https://git-scm.com/)                                                                                | Source Code Management (SCM) client                                                                                                |
-| [Joy](https://github.com/tforster/joy)                                                                            | A semi-opinionated framework for managing some common devops tasks                                                                 |
-| [NodeJS 12.3.0](https://nodejs.org/en/)                                                                           | Task running, automation and driving the API                                                                                       |
-| [NPM 6.14.5](https://www.npmjs.com/package/npm)                                                                   | Node package management                                                                                                            |
-| [Oh-My-Zsh](https://github.com/robbyrussell/oh-my-zsh)                                                            | ZSH shell enhancement                                                                                                              |
-| [Serverless Framework](https://serverless.com)                                                                    | The Serverless Framework gives you everything you need to develop, deploy, monitor and secure serverless application on any cloud. |
-| [Ubuntu 20.04 for WSL2](https://www.microsoft.com/en-ca/p/ubuntu/9nblggh4msv6?activetab=pivot:overviewtab)        | Canonical supported Ubuntu for Windows Subsystem for Linux                                                                         |
-| [Visual Studio Code 1.45.1](https://code.visualstudio.com/)                                                       | Powerful and cross-platform code editor                                                                                            |
-| [Windows 10 Pro Insider Preview](https://www.microsoft.com/en-us/software-download/windowsinsiderpreviewadvanced) | The stable version of the Insiders build typically brings new tools of significant use to developers                               |
-| [WSL 2](https://docs.microsoft.com/en-us/windows/wsl/install-win10)                                               | Windows Subsystem for Linux supports native Linux distributions                                                                    |
-| [ZSH](https://www.zsh.org/)                                                                                       | A better shell than Bash                                                                                                           |
+   ```bash
+   GRAPHQL_API_TOKEN=******************************
+   LOG_LEVEL=ALL
+   STAGE=STAGE
+   ```
 
 ## Change Log
 
-v0.4.0 **Switched repository** (2020-05-24)
+See CHANGELOG.md
 
-Migrated the repository from Azure DevOps repos to GitHub.
+## Meta
 
-v0.3.0 **Improve stream stability** (2020-03-26)
+Troy Forster – @tforster – troy.forster@gmail.com
 
-Streams support was refactored to improve both stability and performance.
+See LICENSE for more information.
 
-v0.2.0 **First-use updates** (2020-02-19)
+https://github.com/tforster/webproducer
 
-Numerous minor issues were resolved after using WebProducer for the first time as a dependency of a real project.
+## Contributing
 
-v0.1.0 **Initial creation** (2020-01-07)
-
-Git repository created and proof-of-concept code added to /src directory.
+See CONTRIBUTING.md

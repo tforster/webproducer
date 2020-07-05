@@ -1,13 +1,15 @@
 ("use strict");
 
 // System dependencies (Built in modules)
-//const { Duplex } = require("stream");
 const { Readable, Writable } = require("stream");
 
 // Third party dependencies (Typically found in public NPM packages)
 const AWS = require("aws-sdk");
 const micromatch = require("micromatch");
 const Vinyl = require("vinyl");
+
+// Project dependencies
+const Utils = require("./Utils");
 
 /**
  * Implements Gulp-like dest() function to terminate a piped process by uploading the supplied Vinyl file to AWS S3
@@ -25,49 +27,69 @@ class VinylS3 {
     this.s3 = new AWS.S3({ region: options.region });
   }
 
-  src(globs, relativePath) {
-    const self = new VinylS3(this.options);
-    self.keys = null;
-    return self._src(globs, relativePath);
-  }
-
   /**
-   * Stream Vinyl files FROM an S3 bucket
+   *
    *
    * @param {*} globs
    * @returns
    * @memberof VinylS3
    */
-  _src(globs, relativePath) {
+  src(globs, head = false) {
+    const self = new VinylS3(this.options);
+    self.keys = null;
+
+    // Call our override method
+    return self._src(globs, head);
+  }
+
+  /**
+   *
+   *
+   * @param {string} globs:
+   * @param {boolean} head: Used to determine whether to fetch full file contents or just ETag headers
+   * @returns
+   * @memberof VinylS3
+   */
+  _src(globs, head) {
     const self = this;
 
-    self.globs = globs;
-    // If present, is the relativePath segment to remove
-    self.relativePath = relativePath;
+    // Convert single string globs to an array
+    if (!Array.isArray(globs)) {
+      globs = [globs];
+    }
 
     const readable = new Readable({ objectMode: true, highWaterMark: 64 });
-
-    readable._read = async function() {
+    readable._read = async function () {
       if (!self.keys) {
         // First time here, let's seed the keys array with data from S3 source
+
         try {
           // Get list of all key objects
-          // ! Max is 1000. This code does not handle > 1000 keys at this time
-          self.keys = (await self.s3.listObjectsV2({ Bucket: self.options.Bucket }).promise()).Contents;
+          // ! Max is 1000. This code does not handle > 1000 keys at this time but Prefix filtering should get us a long way.
+          self.keys = (
+            await self.s3
+              .listObjectsV2({
+                Bucket: self.options.bucket, // Bucket name originally from the constructor
+                Prefix: self.options.base, // Use the base as a prefix to filter. E.g. prefix = /src/stage
+              })
+              .promise()
+          ).Contents;
+
           // Map to remove extraneous properties and get us to an array of just Keys
-          self.keys = self.keys.map((key) => key.Key);
+          self.keys = self.keys.map((mappedKey) => mappedKey.Key);
+
           // Filter the list of Keys based on the glob
-          self.keys = micromatch(self.keys, self.globs);
+          self.keys = micromatch(self.keys, globs);
         } catch (err) {
-          console.error(`Vinyl-S3 Error ${err.code}`);
           switch (err.code) {
             case "NoSuchBucket":
-              console.error("ERR: Bucket not found", self.options.Bucket, self.options.region);
+              console.error("ERR: Bucket not found", self.options.bucket, self.options.region);
               break;
             case "AccessDenied":
+              console.error("ERR: Bucket access denied", self.options.bucket);
               throw err;
             default:
-              console.error("ERR: Bucket error to be added to s3._read", self.options.Bucket, self.options.region);
+              console.error("ERR: Bucket error to be added to s3._read", self.options.bucket, self.options.region);
           }
           throw err;
         }
@@ -83,35 +105,68 @@ class VinylS3 {
       // Pop the oldest key off the top of the array FIFO style
       const key = self.keys.pop();
 
-      // Start creating our Vinyl object params. Remove any prefix path like stage or prod
-      const regex = new RegExp(`^${self.relativePath}`);
-      const vinylParams = { path: key.replace(regex, "") };
+      // Start creating our Vinyl object params. Remove any prefix path like /src/stage or /dist/prod
+      const prefix = new RegExp(`^${self.options.base}/`);
+      const vinylParams = { path: key.replace(prefix, "") };
 
-      // Fetch the data from S3
-      try {
-        const s3Object = await self.s3
-          .getObject({
-            Bucket: self.options.Bucket,
-            Key: key,
-          })
-          .promise();
+      // TODO: This is absolutely BRUTE-FORCE, copy/paste duplicated, and FUGLY code that must be refactored!
+      if (head) {
+        try {
+          const s3Object = await self.s3
+            .headObject({
+              Bucket: self.options.bucket,
+              Key: key,
+            })
+            .promise();
 
-        // Set the directory or file details, as determined by the key, in our Vinyl object params
-        if (key.match(/\/$/) > "") {
-          // Is directory so set mode and leave contents as null
-          vinylParams.stat = { mode: 16384 };
-        } else {
-          // Is file, so set contents
-          vinylParams.contents = Buffer.from(s3Object.Body);
+          // Set the directory or file details, as determined by the key, in our Vinyl object params
+          if (key.match(/\/$/) > "") {
+            // Is directory so set mode and leave contents as null
+            vinylParams.stat = { mode: 16384 };
+          } else {
+            // Is file, so set contents
+            vinylParams.stat = { mode: 0 };
+            // ! JSON.parse() required! S3 returns in the format ""1f077ad7e6b4bf07910a0c5b9f654e6c"" but we do not know why yet
+            vinylParams.eTag = JSON.parse(s3Object.ETag);
+            vinylParams.size = s3Object.ContentLength;
+          }
+          // Create a new Vinyl object
+          const vinyl = new Vinyl(vinylParams);
+
+          // Push the Vinyl object into the stream
+          readable.push(vinyl);
+        } catch (err) {
+          console.error("Vinyl-s3._read()", err, key, vinylParams);
+          throw err;
         }
-        // Create a new Vinyl object
-        const vinyl = new Vinyl(vinylParams);
+      } else {
+        // Fetch the data from S3
+        try {
+          const s3Object = await self.s3
+            .getObject({
+              Bucket: self.options.bucket,
+              Key: key,
+            })
+            .promise();
 
-        // Push the Vinyl object into the stream
-        readable.push(vinyl);
-      } catch (err) {
-        console.error("Vinyl-s3._read()", err, key, vinylParams);
-        throw err;
+          // Set the directory or file details, as determined by the key, in our Vinyl object params
+          if (key.match(/\/$/) > "") {
+            // Is directory so set mode and leave contents as null
+            vinylParams.stat = { mode: 16384 };
+          } else {
+            vinylParams.stat = { mode: 0 };
+            // Is file, so set contents
+            vinylParams.contents = Buffer.from(s3Object.Body);
+          }
+          // Create a new Vinyl object
+          const vinyl = new Vinyl(vinylParams);
+
+          // Push the Vinyl object into the stream
+          readable.push(vinyl);
+        } catch (err) {
+          console.error("Vinyl-s3._read()", err, key, vinylParams);
+          throw err;
+        }
       }
     };
 
@@ -119,48 +174,52 @@ class VinylS3 {
   }
 
   /**
-   * Stream Vinyl files TO an S3 bucket
+   * Allows a readable stream to upload files to S3 for web serving
    *
-   * @returns
+   * @static
+   * @param {object} config:      The parsed S3 data from config.yml
+   * @param {string} [folder=""]: The optional folder in the S3 bucket to write to (e.g. /dist/prod, etc)
+   * @returns {WritableStream}:   A writeable stream
    * @memberof VinylS3
    */
-  dest() {
-    const _this = this;
-    const options = _this.options;
+  static dest(config, folder = "") {
+    const Bucket = config.bucket;
+    const s3 = new AWS.S3({ region: config.region });
 
-    this.writable = this.writable || new Writable({ objectMode: true });
+    return new Writable({
+      objectMode: true,
 
-    this.writable._write = function(file, _, done) {
-      const params = {
-        Bucket: options.Bucket,
-        Key: options.key || file.basename,
-        Body: file.contents,
-        ACL: "public-read",
-      };
+      write: async function (file, _, done) {
+        // Construct the slug, aka Key because we pass it to the S3 upload() method.
+        const Key = require("path").join(folder, file.relative);
 
-      // Stream the provided file to the S3 bucket and key
-      try {
-        _this.s3
+        const params = {
+          Bucket,
+          Key,
+          Body: file.contents,
+          ACL: config.acl || "public-read",
+        };
+
+        // Setting the content type is enabled by default but can disabled in webrpoducer.yml
+        if (file.contentType) {
+          params.ContentType = file.contentType;
+        }
+
+        // TODO: regardless of .html status, should we assume to set contenttype? Or do we make it config param
+
+        await s3
           .upload(params)
           .promise()
-          .then(() => {
-            done();
-          })
           .catch((reason) => {
             console.error("VinylS3.dest:s3.upload:", reason);
             throw reason;
           });
-      } catch (err) {
-        console.error("s3._write error", err);
-        throw err;
-      }
-    };
-
-    // this.writable.on("finish", () => {
-    //   console.log("FINISH");
-    // });
-
-    return this.writable;
+        done();
+      },
+      // end: function (x) {
+      //   console.log("FINISHED:", x)
+      // }
+    });
   }
 }
 
