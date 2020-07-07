@@ -2,27 +2,27 @@
 ("use strict");
 
 // System dependencies (Built in modules)
-const path = require("path");
-const { Writable } = require("stream");
+const { Readable, Writable } = require("stream");
 
 // Third party dependencies (Typically found in public NPM packages)
 const handlebars = require("handlebars");
-const through = require("through2");
 const Vinyl = require("vinyl");
 
-// ToDo: Make paths an object with a templates and partials key, so that we can more efficiently split up on line 28
-
 /**
- * Implements Vinyl files around Handlebars generated content
+ * Implements the core functionality that allows WebProducer to combine data and templates to produce pages. 
+ 
+ * Note that this class depends upon Handlebars which implies that WebProducer requires Handlebars syntax in templates. Testing and
+ * benchmarking of several templating engines was performed before deciding to align with Handlebars.
  *
- * @class VinylHandlebars
+ * @class PageBuilder
  */
-class VinylHandlebars {
+class PageBuilder {
   /**
-   * Creates an instance of HandlebarsHelper.
-   * @memberof HandlebarsHelper
+   * Creates an instance of PageBuilder
+   * @memberof PageBuilder
    */
   constructor() {
+    // Track the handlebars engine
     this.handlebars = {};
   }
 
@@ -31,7 +31,7 @@ class VinylHandlebars {
    *
    * @param {stream} sourceStream:  A Readable stream of vinyl files
    * @returns:                      A Promise of completion
-   * @memberof HandlebarsHelper
+   * @memberof PageBuilder
    */
   async precompile(sourceStream) {
     return new Promise((resolve, reject) => {
@@ -70,40 +70,62 @@ class VinylHandlebars {
    *
    * @param {object} data:  Data, likely from a transformed GraphQL query, to be merged with precompiled .hbs templates
    * @returns:              An object containing the Readable stream of generated pages, and the number of pages processed
-   * @memberof HandlebarsHelper
+   * @memberof PageBuilder
    */
   async build(data) {
     const templates = this.handlebars.templates;
-    const stream = through.obj((file, _, done) => {
-      done(null, file);
+
+    const stream = new Readable({
+      objectMode: true,
+      read: function (vinylFile) {
+        this.push(vinylFile);
+      },
     });
 
-    // Set a page counter
+    // Set some counters
     let pages = 0;
+    let redirects = 0;
 
     // Iterate all available data elements (note: one per "page")
     for (const key in data) {
-      // Isolate the current data element
-      //key = key.trim();
       const fields = data[key];
+      let vinylParams;
 
       // Only attempt to build a page if the fields data contains a reference to the physical ebs file to use
       if (fields && fields.modelName && templates[`${fields.modelName}.hbs`]) {
         // Merge the data element with the template indicated in the data elements modelName property (required)
         const result = templates[`${fields.modelName}.hbs`](fields);
 
-        // key.trim() required to cleanup any spaces that sometimes get added by the content editor
-        const vf = new Vinyl({ path: key.trim().slice(1), contents: Buffer.from(result) });
-        stream.write(vf);
+        vinylParams = {
+          path: key.trim().slice(1),
+          contents: Buffer.from(result),
+        };
         pages++;
+      } else if (fields && fields.modelName && fields.modelName === "redirect") {
+        vinylParams = {
+          path: key.trim().slice(1),
+          contents: Buffer.from(key.trim().slice(1)),
+          redirect: 301,
+          targetAddress: fields.targetAddress,
+        };
+        redirects++;
       } else {
         console.error(`Missing modelName for >${key}<`);
       }
+
+      // Create and write a new Vinyl object to stream
+      if (vinylParams) {
+        const vinyl = new Vinyl(vinylParams);
+        stream.push(vinyl);
+      }
     }
-    stream.end();
+
+    // End the readable stream
+    stream.push(null);
+
     // Return a Promise of the number of pages built
-    return { stream, pages };
+    return { stream, pages, redirects };
   }
 }
 
-module.exports = VinylHandlebars;
+module.exports = PageBuilder;

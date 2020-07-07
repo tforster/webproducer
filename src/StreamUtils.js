@@ -40,15 +40,16 @@ class StreamUtils {
   /**
    * Helper function to set various additional properties on a VinylFile
    *
+   * - Vinyl provides an isDirectory() function with some odd conditions. Since we are dealing with some files with empty contents
+   *   we cannot use isDirectory().
+   *
    * @static
    * @param {*} vinylFile
    * @param {*} options
    * @returns
-   * @memberof Metafy
+   * @memberof StreamUtils
    */
   _setProperties(vinylFile, options) {
-    // ! DO NOT USE vinyl.isDirectory() as it will return false if contents = null. Issuing S3.headObject() returns nulls!!!
-
     if (vinylFile.contents) {
       // .HTML extension
       if (options.setHttpExtension) {
@@ -83,7 +84,7 @@ class StreamUtils {
    * @param {StreamReadable} destinationStream: Stream containing all the current files that exist in the destination prior to build
    * @param {*} options
    * @returns
-   * @memberof Metafy
+   * @memberof StreamUtils
    */
   parseDestinationFiles(destinationStream) {
     const self = this;
@@ -126,7 +127,7 @@ class StreamUtils {
     const transform = new Transform({
       objectMode: true,
       transform: function (vinylFile, _, done) {
-        vinylFile = self._setProperties(vinylFile, { setContentTypeHeader: true, setHash: true });
+        vinylFile = self._setProperties(vinylFile, { setContentTypeHeader: true, setHash: true, setS3Redirect: true });
         const { relative, eTag } = vinylFile;
 
         if (self.destinationReads[relative]) {
@@ -134,7 +135,7 @@ class StreamUtils {
           if (self.destinationReads[relative].eTag !== eTag) {
             // vinylFile is different than the original
             self.destinationUpdates.push(relative);
-            console.log("UPDATE:", relative, eTag);
+            console.log("UPDATE:", relative);
             done(false, vinylFile);
           } else {
             done(false);

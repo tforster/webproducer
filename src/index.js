@@ -13,10 +13,10 @@ const CloudFront = require("./CloudFront");
 const Config = require("./Config");
 const GraphQLDataProvider = require("./GraphQLDataProvider");
 const MergeStream = require("./MergeStream");
+const StreamUtils = require("./StreamUtils");
 const Utils = require("./Utils");
 const vs3 = require("./Vinyl-s3");
-const VHandlebars = require("./Vinyl-Handlebars");
-const StreamUtils = require("./StreamUtils");
+const PageBuilder = require("./PageBuilder");
 
 /**
  * Website and web-app agnostic class implementing a "build" process that merges handlebars templates with GraphQL data to produce
@@ -45,7 +45,7 @@ class WebProducer {
     this.src = Utils.vinylise(this.config.templateSource);
     this.dest = Utils.vinylise(this.config.destination);
     console.log(`>>> src:  ${this.src.path}`);
-    console.log(`>>> dest: ${this.dest.path}`);
+    console.log(`>>> dest: ${this.dest.path || this.dest.bucket || "n/a"}`);
   }
 
   /**
@@ -81,7 +81,7 @@ class WebProducer {
     // Shortcut to access config
     const config = this.config;
     // Instantiate various classes
-    const vhandlebars = new VHandlebars();
+    const pageBuilder = new PageBuilder();
     const streamUtils = new StreamUtils();
 
     // Setup the FS and/or S3 streams for retrieving and uploading content
@@ -93,28 +93,25 @@ class WebProducer {
     // Template source is expected to be in a stage specific and lower cased subfolder, eg, /dev, /stage or /prod
     const srcRoot = this.src.base;
 
-    try {
-      // Parallelise fetching data from API, precompiling templates and all from async stream reading
-      var [siteData, _] = await Promise.all([
-        // Wait for our GraphQL data that in turn needs to wait for the contents of graphql.query and transform.js
-        await GraphQLDataProvider.data(srcStreamReadable.src(`${srcRoot}/db/**/*`), config),
-        // Precompile all .hbs templates into the vhandlebars object from the stream
-        vhandlebars.precompile(srcStreamReadable.src(`${srcRoot}/theme/**/*.hbs`)),
-      ]);
-      // Quick check to ensure we have actual data to work with
-      if (!siteData || Object.entries(siteData).length === 0) {
-        throw new Error("No data provided");
-      }
-    } catch (err) {
-      console.error(err);
-      throw err;
+    // Parallelise fetching data from API, precompiling templates and all from async stream reading
+    var [siteData, _] = await Promise.all([
+      // Wait for our GraphQL data that in turn needs to wait for the contents of graphql.query and transform.js
+      await GraphQLDataProvider.data(srcStreamReadable.src(`${srcRoot}/db/**/*`), config),
+      // Precompile all .hbs templates into the vhandlebars object from the stream
+      pageBuilder.precompile(srcStreamReadable.src(`${srcRoot}/theme/**/*.hbs`)),
+    ]);
+
+    // Quick check to ensure we have actual data to work with
+    if (!siteData || Object.entries(siteData).length === 0) {
+      throw new Error("No data provided");
     }
 
     // Promise.all above resolved with data and precompiled templates from different sources so now we can generate pages.
-    const pages = await vhandlebars.build(siteData);
+    const pages = await pageBuilder.build(siteData);
 
     // Merge our streams containing loose files, concatenated scripts, concatenated css and generated HTML into one main stream
-    // TODO: Make name a parameter than can be passed in on the .src() method for cleaner code here
+
+    // TODO: Make name a parameter than can be passed in on the .src() method for cleaner code here. Has to work with vFS and vS3.
 
     // Loose files are all non-transformable resources like fonts, robots.txt, etc. Note that we ignore db, scripts, theme, etc.
     const looseFiles = srcStreamReadable.src([
@@ -147,6 +144,7 @@ class WebProducer {
 
     // Merge all the various input streams into one main stream to be parsed
     const streams = [looseFiles, scripts, stylesheets, pagesStream];
+
     // MergedStream is new in 0.5.0 and replaces the previous and more complicated Promise-based code block
     const mergedStream = new MergeStream(streams);
 
@@ -177,7 +175,12 @@ class WebProducer {
     // delete files
     // TODO: Implement filesystem agnostic deletion class/method. Consider a branched stream?
     const endTime = new Date();
-    console.log(`>>> WebProduced finished at ${endTime.toISOString()} (${endTime - this.startTime}ms).`);
+
+    console.log(
+      `>>> WebProducer built and deployed ${pages.pages} pages and ${pages.redirects} redirects at ${endTime.toISOString()} (${
+      endTime - this.startTime
+      }ms).`
+    );
   }
 }
 
