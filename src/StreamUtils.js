@@ -129,7 +129,7 @@ class StreamUtils {
     const transform = new Transform({
       objectMode: true,
       transform: function (vinylFile, _, done) {
-        vinylFile = self._setProperties(vinylFile, { setContentTypeHeader: true, setHash: true, setS3Redirect: true });
+        vinylFile = self._setProperties(vinylFile, { setContentTypeHeader: true, setHash: true });
         const { relative, eTag } = vinylFile;
 
         if (self.destinationReads[relative]) {
