@@ -19,6 +19,7 @@ const Vinyl = require("vinyl");
 class PageBuilder {
   /**
    * Creates an instance of PageBuilder
+   *
    * @memberof PageBuilder
    */
   constructor() {
@@ -66,10 +67,9 @@ class PageBuilder {
 
   /**
    * Merges precompiled .hbs templates with data to generate a Readable stream of generated .html
-   * ToDo: Switch from Through2 to native Readable stream
    *
    * @param {object} data:  Data, likely from a transformed GraphQL query, to be merged with precompiled .hbs templates
-   * @returns:              An object containing the Readable stream of generated pages, and the number of pages processed
+   * @returns:              An object containing the Readable stream of generated pages, and the number of pages and redirects processed
    * @memberof PageBuilder
    */
   async build(data) {

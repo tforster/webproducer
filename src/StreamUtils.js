@@ -89,7 +89,7 @@ class StreamUtils {
   parseDestinationFiles(destinationStream) {
     const self = this;
 
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
       // Parse the stream and resolve when it is done
       const writable = new Writable({
         objectMode: true,
@@ -111,7 +111,6 @@ class StreamUtils {
 
       // Setup an error handler
       writable.on("error", function (err) {
-        console.log("error");
         throw err;
       });
 
@@ -120,7 +119,10 @@ class StreamUtils {
     });
   }
 
-  // Returns a stream just the vinylFiles that need to be updated (VFS and S3)
+  /**
+   * @returns:  a stream just the vinylFiles that need to be updated (VFS and S3)
+   * @memberof StreamUtils
+   */
   filterDeployableFiles() {
     const self = this;
 
