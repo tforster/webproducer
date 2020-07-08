@@ -40,15 +40,16 @@ class StreamUtils {
   /**
    * Helper function to set various additional properties on a VinylFile
    *
+   * - Vinyl provides an isDirectory() function with some odd conditions. Since we are dealing with some files with empty contents
+   *   we cannot use isDirectory().
+   *
    * @static
    * @param {*} vinylFile
    * @param {*} options
    * @returns
-   * @memberof Metafy
+   * @memberof StreamUtils
    */
   _setProperties(vinylFile, options) {
-    // ! DO NOT USE vinyl.isDirectory() as it will return false if contents = null. Issuing S3.headObject() returns nulls!!!
-
     if (vinylFile.contents) {
       // .HTML extension
       if (options.setHttpExtension) {
@@ -83,12 +84,12 @@ class StreamUtils {
    * @param {StreamReadable} destinationStream: Stream containing all the current files that exist in the destination prior to build
    * @param {*} options
    * @returns
-   * @memberof Metafy
+   * @memberof StreamUtils
    */
   parseDestinationFiles(destinationStream) {
     const self = this;
 
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
       // Parse the stream and resolve when it is done
       const writable = new Writable({
         objectMode: true,
@@ -110,7 +111,6 @@ class StreamUtils {
 
       // Setup an error handler
       writable.on("error", function (err) {
-        console.log("error");
         throw err;
       });
 
@@ -119,7 +119,10 @@ class StreamUtils {
     });
   }
 
-  // Returns a stream just the vinylFiles that need to be updated (VFS and S3)
+  /**
+   * @returns:  a stream just the vinylFiles that need to be updated (VFS and S3)
+   * @memberof StreamUtils
+   */
   filterDeployableFiles() {
     const self = this;
 
@@ -134,7 +137,7 @@ class StreamUtils {
           if (self.destinationReads[relative].eTag !== eTag) {
             // vinylFile is different than the original
             self.destinationUpdates.push(relative);
-            console.log("UPDATE:", relative, eTag);
+            console.log("UPDATE:", relative);
             done(false, vinylFile);
           } else {
             done(false);

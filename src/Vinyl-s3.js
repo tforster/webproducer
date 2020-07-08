@@ -205,6 +205,10 @@ class VinylS3 {
           params.ContentType = file.contentType;
         }
 
+        if (file.redirect && file.redirect === 301) {
+          params.WebsiteRedirectLocation = file.targetAddress;
+        }
+
         // TODO: regardless of .html status, should we assume to set contenttype? Or do we make it config param
 
         await s3
