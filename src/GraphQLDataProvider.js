@@ -22,6 +22,12 @@ class GraphQLDataProvider {
    * @memberof GraphQLDataProvider
    */
   static async _fetchData(options) {
+    if (!options.token || options.token === "undefined") {
+      throw new Error("token not provided");
+    }
+    if (!options.query || !options.transform) {
+      throw new Error("query and/or transform not provided.");
+    }
     // Construct the URL for preview vs published. GraphQL endpoint of "/" = published, "/preview" includes drafts
     const url = new URL(options.endpoint);
     // Default preview to false to prevent accidental leakage of unpublished content
@@ -76,7 +82,7 @@ class GraphQLDataProvider {
    * @memberof WebProducer
    */
   static async data(sourceStream, options) {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       const dataFiles = {};
 
       try {
@@ -84,7 +90,8 @@ class GraphQLDataProvider {
           objectMode: true,
         });
 
-        writable._write = function(file, _, done) {
+        // Each time we parse a file write it's name and contents to the stream
+        writable._write = function (file, _, done) {
           dataFiles[file.basename] = file.contents.toString();
           done();
         };
@@ -97,9 +104,9 @@ class GraphQLDataProvider {
           // 1.fetch query
           const graphQLOptions = {
             query: dataFiles["query.graphql"],
-            endpoint: options.graphQL.apiEndpoint,
+            endpoint: options.dataSource.path,
             transform: dataFiles["transform.js"],
-            token: options.graphQL.apiToken,
+            token: options.dataSource.token,
             preview: options.preview,
           };
 
@@ -108,14 +115,17 @@ class GraphQLDataProvider {
             return resolve(data);
           } catch (err) {
             console.error("_fetchData():", err);
-            throw err;
+            if (err.errors && err.errors[0] && err.errors[0].message && err.errors[0].message === "No query string was present") {
+              console.error("Check that the GraphQL query was passed properly.");
+            }
+            return reject(err);
           }
         });
 
         sourceStream.pipe(writable);
       } catch (err) {
-        console.log(err);
-        throw err;
+        console.error(err);
+        return reject(err);
       }
     });
   }
