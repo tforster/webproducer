@@ -25,6 +25,38 @@ class StreamUtils {
   }
 
   /**
+   * NOT CURRENTLY IN USE
+   *
+   * A transform stream intended to rewrite the path portion of a Vinyl file object
+   * - Was started to answer the question of moving generated scripts from scripts folder to root but abandoned in favour of
+   *   improved Vinyl file creation in VinylS3
+   * - In early testing it worked, however it rewrote the entire path rather than the path upto but not including the filename
+   *
+   * @static
+   * @param {*} newPath
+   * @returns
+   * @memberof StreamUtils
+   */
+  static mv(newPath) {
+    const transform = new Transform({
+      objectMode: true,
+      transform: function (vinylFile, _, done) {
+        console.log(`>>> Moved ${vinylFile.path} to ${newPath} for ${vinylFile.basename}`);
+        vinylFile.path = newPath;
+        done(false, vinylFile);
+      },
+    });
+
+    transform.on("error", (err) => {
+      throw new Error(err);
+    });
+
+    transform.on("finish", () => { });
+
+    return transform;
+  }
+
+  /**
    * Get the MD5 hash of the fileContents. Note that we opted for MD5 as that is already in use by S3.
    * @static
    * @param {ArrayBuffer} fileContents: Typically found as .contents from a ReadableStream where objectMode = true;
