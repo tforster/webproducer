@@ -25,6 +25,12 @@ class VinylS3 {
     // Set objectMode true as we are processing whole Vinyl files, not chunks of a single file
     this.options = options;
     this.s3 = new AWS.S3({ region: options.region });
+
+    // https://github.com/nodejs/node-v0.x-archive/issues/3045
+    this.FS_MODES = {
+      S_IFREG: 32768, // regular file
+      S_IFDIR: 16384, // directory
+    };
   }
 
   /**
@@ -149,17 +155,8 @@ class VinylS3 {
             })
             .promise();
 
-          // Set the directory or file details, as determined by the key, in our Vinyl object params
-          if (key.match(/\/$/) > "") {
-            // Is directory so set mode and leave contents as null
-            vinylParams.stat = { mode: 16384 };
-          } else {
-            vinylParams.stat = { mode: 0 };
-            // Is file, so set contents
-            vinylParams.contents = Buffer.from(s3Object.Body);
-          }
-          // Create a new Vinyl object
-          const vinyl = new Vinyl(vinylParams);
+          // Create a Vinyl object using data obtained from the glob, the micromatch and the S3 getObject results
+          const vinyl = self._vinyl(micromatch.scan(globs[0]), key, Buffer.from(s3Object.Body));
 
           // Push the Vinyl object into the stream
           readable.push(vinyl);
@@ -171,6 +168,32 @@ class VinylS3 {
     };
 
     return readable;
+  }
+
+  /**
+   * Utility handler for easily creating Vinyl files. Currently used by _src() but should be moved to Utils and made available to
+   * a wider range of modules.
+   *
+   * @param {object} globPattern: An object containing results of the micromatch including the glob base. e.g. stage/db
+   * @param {string} globbedPath: The path. e.g. stage/db/query.graphql
+   * @param {Buffer} contents:    An optional Buffer with the file contents (would be empty for a directory)
+   * @returns:                    A fully qualified Vinyl object c/w contents (if applicable) and fsStat value
+   * @memberof VinylS3
+   */
+  _vinyl(globPattern, globbedPath, contents) {
+    // Create the file mode based on the presence of a trailing slash
+    const stat = globbedPath.match(/\/$/) > "" ? this.FS_MODES.S_IFDIR : this.FS_MODES.S_IFREG;
+
+    // Parameters object to pass to the Vinyl constructor
+    const vinylParams = {
+      cwd: "/",
+      // base: will default to cwd if it is not included
+      path: globbedPath.replace(globPattern.base, ""),
+      contents,
+      stat,
+    };
+
+    return new Vinyl(vinylParams);
   }
 
   /**
