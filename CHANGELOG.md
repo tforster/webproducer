@@ -3,7 +3,6 @@
 v0.5.1 **Fixes issue whereby scripts and css were not being moved to the root** (2020-07-21)
 
 - Fixes issue where VinylS3 src was not creating the .path and .base properties properly.
--
 
 v0.5.0 **S3+CloudFront** (2020-07-05)
 
