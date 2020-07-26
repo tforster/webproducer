@@ -47,13 +47,11 @@ class GraphQLDataAdapter {
 
       if (result.errors) {
         throw result;
-      } else return result.data;;
-
+      } else return result.data;
     } catch (err) {
       throw err;
     }
   }
-
 
   /**
    *
@@ -63,7 +61,7 @@ class GraphQLDataAdapter {
    * @param {*} url
    * @param {*} published
    * @returns
-   * @memberof GraphQLDataProvider
+   * @memberof GraphQLDataAdapter
    */
   static _providerPublished(provider, url, published) {
     switch (provider) {
@@ -79,7 +77,6 @@ class GraphQLDataAdapter {
     }
     return url;
   }
-
 }
 
 module.exports = GraphQLDataAdapter;

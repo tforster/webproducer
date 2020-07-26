@@ -6,6 +6,7 @@ const path = require("path");
 const { promises: fs } = require("fs");
 
 // Third party dependencies (Typically found in public NPM packages)
+const AWS = require("aws-sdk");
 const mime = require("mime/lite");
 
 /**
@@ -31,6 +32,29 @@ class Utils {
       directories = [directories];
     }
     return Promise.all(directories.map((directory) => fs.rmdir(directory, { recursive: true })));
+  }
+
+
+  /**
+   *
+   *
+   * @static
+   * @param {} data
+   * @param {string} filename:  
+   * @param {object} meta
+   * @returns {Promise}:        A Promise of the pending fs or S3 save
+   * @memberof Utils
+   */
+  static saveFile(data, filename, meta) {
+    const metaType = Utils.identifyFileSystem(meta);
+    const snapshotPath = path.join(meta, filename);
+    if (metaType !== "file") {
+      console.error(`>>> Skipping ${snapshotPath}. Utils.saveFile only supports local filesystems at this time. Message only. No error will be thrown.`);
+      return;
+    }
+    const promise = fs.writeFile(snapshotPath, data);
+    console.log(`>>> Saved ${snapshotPath}.`);
+    return promise;
   }
 
   /**

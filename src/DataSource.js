@@ -1,7 +1,6 @@
 ("use strict");
 
 // System dependencies (Built in modules)
-const fs = require("fs").promises;
 const Module = module.constructor;
 const { Writable } = require("stream");
 
@@ -11,7 +10,7 @@ const vfs = require("vinyl-fs");
 // Project dependencies
 const GraphQLDataAdapter = require("@tforster/webproducer/src/GraphQLDataAdapter");
 const Utils = require("./Utils");
-const vs3 = require("./Vinyl-s3");
+const vs3 = require("./S3FileAdapter");
 
 /**
  * Note that while the majority of WebProducer is heavily streams focused we don't return a stream for the data source. This is
@@ -22,6 +21,7 @@ const vs3 = require("./Vinyl-s3");
 class DataSource {
   /**
    * Returns the complete site data
+   * - options.snapshot is used by non-filesystem types (e.g. GraphQL, GET, SQL and Mongo) to store a snapshot in meta/data.json
    *
    * @static
    * @param {object} options: A set of properties that describe the data source, its type, path and meta information
@@ -31,8 +31,8 @@ class DataSource {
   static async data(options) {
     let data = {};
 
-    // Attempt to get any query or transform from the meta path if it was provided.
-    const { query, transform } = await DataSource._getMeta(options.meta, options.region);
+    // Attempt to get any query, transform or data from the meta path if it was provided.
+    const { query, transform, json } = await DataSource._getMeta(options.meta, options.region);
 
     // Fetch the data based on the type of data source
     switch (options.type) {
@@ -43,16 +43,19 @@ class DataSource {
         if (!options.token || options.token === "undefined") {
           throw new Error("An auth token is required for type GraphQL");
         }
-        data = await GraphQLDataAdapter.data(options.path, query, options.token, options.published);
+
+        // Return the results of a GraphQL query against the endpoint
+        data = await GraphQLDataAdapter.data(options.endpoint, query, options.token, options.published);
         break;
 
       case "filesystem":
-        const rawData = await fs.readFile(options.path);
-        data = JSON.parse(rawData);
+        // Shortcut from DataSource._getMeta() function above so we don't make a second unneccessary round trip
+        data = json;
         break;
 
       case "s3":
-
+        // Shortcut from DataSource._getMeta() function above so we don't make a second unneccessary round trip
+        data = json;
         break;
 
       case "get":
@@ -77,11 +80,16 @@ class DataSource {
         throw new Error(`Data source type ${options.type} is not supported.`);
     }
 
+    // If the developer passed the snapshot option into main() then generate a JSON file of these results.
+    if (options.snapshot) {
+      await Utils.saveFile(JSON.stringify(data), "snapshot.json", options.meta);
+    }
+
     // Optionally reshape the data if a transform function was provided
-    if (options.transform) {
+    if (transform) {
       const module = new Module();
-      module._compile(metaDataFiles.transform, "transform.js");
-      data = module.exports(data);
+      module._compile(transform, "transform.js");
+      data = new module.exports(options.debugTransform).transform(data);
     }
 
     // Return the data to the main() in index.js
@@ -113,7 +121,7 @@ class DataSource {
       stream = vfs.src(`${metaPath}/**/*.*`);
     } else if (metaType === "s3") {
       const v = Utils.vinylise2(metaPath);
-      stream = new vs3({ bucket: v.bucket, region }).src(v.path);
+      stream = new vs3({ bucket: v.bucket, region }).src(`${v.path}/**/*.*`);
     } else {
       throw new Error(`Meta type ${metaType} is not suported`);
     }

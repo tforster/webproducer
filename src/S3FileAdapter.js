@@ -9,13 +9,12 @@ const micromatch = require("micromatch");
 const Vinyl = require("vinyl");
 
 // Project dependencies
-const Utils = require("./Utils");
 
 /**
  * Implements Gulp-like dest() function to terminate a piped process by uploading the supplied Vinyl file to AWS S3
  * @class VinylS3
  */
-class VinylS3 {
+class s3FileAdapter {
   /**
    * Creates an instance of VinylS3.
    * @param {*} options
@@ -41,7 +40,7 @@ class VinylS3 {
    * @memberof VinylS3
    */
   src(globs, head = false) {
-    const self = new VinylS3(this.options);
+    const self = new s3FileAdapter(this.options);
     self.keys = null;
 
     // Call our override method
@@ -142,7 +141,7 @@ class VinylS3 {
           // Push the Vinyl object into the stream
           readable.push(vinyl);
         } catch (err) {
-          console.error("Vinyl-s3._read()", err, key, vinylParams);
+          console.error("s3FileAdapter._read()", err, key, vinylParams);
           throw err;
         }
       } else {
@@ -161,7 +160,7 @@ class VinylS3 {
           // Push the Vinyl object into the stream
           readable.push(vinyl);
         } catch (err) {
-          console.error("Vinyl-s3._read()", err, key, vinylParams);
+          console.error("s3FileAdapter._read()", err, key, vinylParams);
           throw err;
         }
       }
@@ -250,4 +249,4 @@ class VinylS3 {
   }
 }
 
-module.exports = VinylS3;
+module.exports = s3FileAdapter;

@@ -7,16 +7,16 @@ const zip = new require("jszip")();
 
 /**
  * Transform stream multiple Vinyl files to a single Vinyl file representing the zipped contents
- * @class VinylZip
+ * @class ZipFileAdapter
  */
-class VinylZip {
+class ZipFileAdapter {
   static zip(archiveName = "archive.zip") {
     return through.obj(
       (file, _, done) => {
         zip.file(file.relative, file.contents);
         done(null);
       },
-      function(done) {
+      function (done) {
         this.push(
           new Vinyl({
             path: archiveName,
@@ -33,4 +33,4 @@ class VinylZip {
   }
 }
 
-module.exports = VinylZip;
+module.exports = ZipFileAdapter;

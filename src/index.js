@@ -12,15 +12,14 @@ const vfs = require("vinyl-fs");
 const CloudFront = require("./CloudFront");
 const Config = require("./Config");
 const DataSource = require("./DataSource");
-const GraphQLDataProvider = require("./GraphQLDataProvider");
 const MergeStream = require("./MergeStream");
 const StreamUtils = require("./StreamUtils");
 const Utils = require("./Utils");
-const vs3 = require("./Vinyl-s3");
+const vs3 = require("./S3FileAdapter");
 const PageBuilder = require("./PageBuilder");
 
 /**
- * Website and web-app agnostic class implementing a "build" process that merges handlebars templates with GraphQL data to produce
+ * Website and web-app agnostic class implementing a "build" process that merges handlebars templates with JSON data to produce
  * static output.
  * @class WebProducer
  */
@@ -95,12 +94,27 @@ class WebProducer {
   }
 
   /**
-   * Entry point into WebProducer
+ 
    * @memberof WebProducer
    */
-  async main() {
+
+  /**
+   * Entry point into WebProducer
+   *
+   * @param {object} options: Additional options typically passed at runtime to temporarily alter the behaviour of WebProducer
+   *                          - debugTransform: Enable breakpoint debugging in transform.js
+   *                          - dataSnapshot:   Save retrieved data to the current data meta path as data.json
+   * @memberof WebProducer
+   */
+  async main(options) {
     // Shortcut to access config
     const config = this.config;
+
+    // Set debugTransform true to be passed into dynamically loaded Transform module to enable breakpoint debugging
+    this.data.debugTransform = options.debugTransform;
+    // Set snapshot true to save the retrieved data (usually via GraphQL) to the current data meta path
+    this.data.snapshot = options.snapshot;
+
     // Instantiate various classes
     const pageBuilder = new PageBuilder();
     const streamUtils = new StreamUtils();
@@ -117,8 +131,7 @@ class WebProducer {
     try {
       // Parallelise fetching data from API, precompiling templates and all from async stream reading
       var [siteData, _] = await Promise.all([
-        // Wait for our GraphQL data that in turn needs to wait for the contents of graphql.query and transform.js
-        //await GraphQLDataProvider.data(srcStreamReadable.src(`${srcRoot}/db/**/*`), config),
+        // Wait for our data source to return from any remote retrieval, database queries and transformations
         await DataSource.data(this.data),
         // Precompile all .hbs templates into the vhandlebars object from the stream
         pageBuilder.precompile(srcStreamReadable.src(`${srcRoot}/theme/**/*.hbs`)),
