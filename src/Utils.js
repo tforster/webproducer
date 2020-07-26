@@ -80,7 +80,6 @@ class Utils {
    * @memberof Utils
    */
   static identifyFileSystem(aPath) {
-    //const pattern = /^(s3:)|^(http:|https:)|^(\/|\.\.\/|\.\/|\w*)/;
     const matches = /^(s3:)|^(http:|https:)|^(\/|\.\.\/|\.\/|\w*)/.exec(aPath.toLowerCase());
     return ["s3", "http", "file"][matches.slice(1).findIndex((match) => match > "")] || "unknown";
   }
