@@ -1,5 +1,24 @@
 # Change Log
 
+v0.6.0 **Static JSON Files** (2020-07-26)
+
+Breaking changes:
+
+- The format of webproducer.yml has changed. See the latest [README](README.md).
+- Index.js now assumes src/data vs former src/db. The former db directory will need to be renamed to data.
+
+Features:
+
+- Supports snapshot option to persist data.
+- Supports debugTransform option to enable breakpoint debugging of the external transform module.
+- Index.js constructor now supports string or object values for data, templates and destination.
+- Added a projicon to root.
+- DataSource class has placeholders for future get (REST), sql and mongo sources.
+
+Fixes:
+
+- Fixed issue in Config.js where environment variables were only expanded if they were at the end of string.
+
 v0.5.1 **Fixes issue whereby scripts and css were not being moved to the root** (2020-07-21)
 
 - Fixes issue where VinylS3 src was not creating the .path and .base properties properly.

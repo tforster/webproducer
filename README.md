@@ -4,7 +4,7 @@
 
 WebProducer, or simply WP, is a serverless application for publishing content to the web. It equally supports websites and web applications with a lean, streams based, architecture.
 
-The current version is dependent upon the Amazon AWS stack, including Amplify, IAM, Lambda and S3. Support for other providers including Google and Microsoft is planned for the future.
+The current version is dependent upon the Amazon AWS stack, including IAM, Lambda, S3+CloudFront. Support for other providers including Google and Microsoft is planned for the future.
 
 The core of the module is a NodeJS Lambda function. This function is intended to act as the endpoint for a webhook from your preferred CMS. Changing content in the CMS should trigger the webhook which will then
 
@@ -36,53 +36,77 @@ Clone this repository as your new project `git clone git@github.com:tforster/web
 ## Usage
 
 1. Install using your preferred package manager. E.g. `npm i -S git+ssh://git@github.com/tforster/webproducer.git`
-1. Create webproducer.yml. The following example shows multiple formats for templateSource and destination. In practice only one can be used at a time.
+1. Create webproducer.yml. The following example shows multiple formats for data, templates and destination by way of aliases introduced in 0.6.0.
 
    ```yml
-   dataSource:
-     ## GraphQL query
-     type: graphql
-     path: https://graphql.datocms.com/
-     token: ${env:GRAPHQL_API_TOKEN}
-
-   templateSource:
-     ## AWS S3
-     type: s3
-     path: s3://wp.somebucket.com/src/${env:STAGE}
-     region: us-east-1
-
-     ## Local filesystem
-     type: filesystem
-     path: ./src
-
-   destination:
-     ## Local filesystem
+   data: ${env:DATA_ALIAS} # Uses an environment variable to specify an alias
+   templates: template-filesystem # Points to an alias
+   destination: # References the destination object directly
      type: filesystem
      path: ./dist
      archive: false
 
-     ## AWS S3
-     type: s3
-     path: s3://www.somebucket.com
-     region: us-east-1
-     archive: false # default
-     setHttpExtension: false # default
-     acl: public-read # default
-     deleteOnSync: true # default
-     webserver: # optional
-       setContentTypeHeader: true # default
-       cloudFrontDistributionId: EZP3VGJ7GV1RO # optional
+   ####################
+   # Template Aliases #
+   ####################
 
-    # preview is currently tightly bound to the DatoCMS implementation for specifying draft vs published
-    preview: ${env:PREVIEW}
+   template-filesystem:
+     type: filesystem
+     path: ./src
+
+   #######################
+   # Destination Aliases #
+   #######################
+
+   destination-filesystem:
+     type: filesystem
+     path: ./dist
+     archive: false
+
+   ################
+   # Data Aliases #
+   ################
+
+   data-fs:
+     type: filesystem
+     meta: ./src/data
+
+   data-graphql:
+     type: graphql
+     endpoint: https://graphql.datocms.com/
+     meta: s3://mybucket/${env:STAGE}/data # References an S3 bucket and staged key previx
+     region: ca-central-1 # S3 meta references currently require the region to be provided
+     token: ${env:GRAPHQL_API_TOKEN} # Uses an environment variable to hide sensitive data from Git commits
+
+   data-s3:
+     type: s3
+     meta: s3://mybucket/${env:STAGE}/data
+     region: ca-central-1
+
+   data-get-request: # REST not implemented. Future consideration only.
+     type: get
+     endpoint: https://some-endpoint.com/this/that
+
+   data-sql: # SQL not implemented. Future consideration only.
+     type: sql
+     endpoint: Server=myServerName\myInstanceName;Database=myDataBase;User Id=${env:DB_USERNAME};Password=${env:DB_PASSWORD};
+     meta: ./src/data/meta
+
+   data-mongodb: # Mongo not implemented. Future consideration only.
+     type: mongo
+     endpoint: mongodb://mongodb0.example.com:27017
+     meta: s3://mybucket/stage/data/meta
+     region: us-east-1
+   # path: A pointer to the root of the data. E.g. a single file containing the data or a database via  connection string
+   # meta: A filesystem or S3 bucket path containing one or both of a query and transform module. Types graphql, sql and mongo all
+   #       require meta with at least a query
    ```
 
 1. Create .env
 
    ```bash
-   GRAPHQL_API_TOKEN=******************************
-   LOG_LEVEL=ALL
-   STAGE=STAGE
+   GRAPHQL_API_TOKEN=****************************** # If using a GraphQL data source
+   STAGE=stage # One of dev, stage or prod
    ```
 
 ## Change Log
