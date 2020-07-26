@@ -152,10 +152,6 @@ class Utils {
       default:
     }
 
-    // Calculate the Vinyl base.
-    // ToDo: Determine if this is needed when we create legit Vinyl file
-    //vinylize.base = path.dirname(vinylize.path);
-    // Setting to path for now since S3 from Yaml should be specifiying that
     vinylize.base = vinylize.path;
 
     // Use RegEx to determine if last path segment is a filename (at least one "." must be present)
