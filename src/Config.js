@@ -31,7 +31,7 @@ class Config {
     // Parse the config string
     try {
       // Replace ${env:xxx} with environment variable
-      const pattern = /\$\{\w*:(\w*)\}$/gim;
+      const pattern = /\$\{\w*:(\w*)\}/gim;
       configString = configString.replace(pattern, (match, p1, p2) => process.env[p1]);
 
       return YAML.parse(configString, {});

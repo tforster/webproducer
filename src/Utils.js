@@ -13,6 +13,12 @@ const mime = require("mime/lite");
  * @class Utils
  */
 class Utils {
+  // https://github.com/nodejs/node-v0.x-archive/issues/3045
+  static FS_MODES = {
+    S_IFREG: 32768, // regular file
+    S_IFDIR: 16384, // directory
+  };
+
   /**
    * Empties the specified directories by recursively removing everything and then force recreating
    * @static
@@ -34,9 +40,63 @@ class Utils {
    * @returns {string}:   The corresponding mimetype, or text/html if no extension was provided.
    * @memberof Utils
    */
-  static getMimeType(path) {
-    const mimeType = mime.getType(path);
+  static getMimeType(aPath) {
+    const mimeType = mime.getType(aPath);
     return mimeType || "text/html";
+  }
+
+
+  /**
+   *
+   * Identifies the type of path as filesystem, S3 or HTTP 
+   * 
+   * @static
+   * @param {string} aPath: A path in the format s3://..., http(s)://... or *nix
+   * @returns {string}:     s3, http or file indicating the type
+   * @memberof Utils
+   */
+  static identifyFileSystem(aPath) {
+    //const pattern = /^(s3:)|^(http:|https:)|^(\/|\.\.\/|\.\/|\w*)/;
+    const matches = /^(s3:)|^(http:|https:)|^(\/|\.\.\/|\.\/|\w*)/.exec(aPath.toLowerCase());
+    return ["s3", "http", "file"][matches.slice(1).findIndex((match) => match > "")] || "unknown";
+  }
+
+
+  static vinylise2(aPath) {
+    const vinylize = {
+
+    };
+
+    switch (Utils.identifyFileSystem(aPath)) {
+      case "s3":
+        vinylize.type = "s3";
+        vinylize.region = "us-east-1";
+        const u = new URL(aPath);
+        vinylize.bucket = u.host;
+        vinylize.path = u.pathname.slice(1); // S3 keys are not rooted at /. E.g. there is no leading / in an S3 key.
+        break;
+      case "file":
+        vinylize.type = "filesystem";
+        vinylize.path = path.resolve(vinylize.path);
+        break;
+      default:
+        throw new Error("Unsupported path type in vinylise2")
+    }
+
+    vinylize.base = vinylize.path;
+
+    // Use RegEx to determine if last path segment is a filename (at least one "." must be present)
+    const matches = vinylize.path.match(/\/[^.^\/]*$/g);
+    if (matches) {
+      // Is a directory
+      vinylize.stat = { mode: Utils.FS_MODES.S_IFDIR };
+    } else {
+      // Is a file
+      vinylize.stat = { mode: Utils.FS_MODES.S_IFREG };
+      vinylize.filename = path.basename(vinylize.path);
+    }
+
+    return vinylize;
   }
 
   /**
