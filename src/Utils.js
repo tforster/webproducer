@@ -6,7 +6,6 @@ const path = require("path");
 const { promises: fs } = require("fs");
 
 // Third party dependencies (Typically found in public NPM packages)
-const AWS = require("aws-sdk");
 const mime = require("mime/lite");
 
 /**
@@ -36,12 +35,10 @@ class Utils {
 
 
   /**
-   *
-   *
    * @static
-   * @param {} data
-   * @param {string} filename:  
-   * @param {object} meta
+   * @param {object} data:      The data to save
+   * @param {string} filename:  The name to save the file as
+   * @param {object} meta:      The "path" to the local filesystem, S3 key, or REST URL
    * @returns {Promise}:        A Promise of the pending fs or S3 save
    * @memberof Utils
    */
@@ -71,31 +68,34 @@ class Utils {
 
 
   /**
-   *
    * Identifies the type of path as filesystem, S3 or HTTP 
-   * 
    * @static
    * @param {string} aPath: A path in the format s3://..., http(s)://... or *nix
    * @returns {string}:     s3, http or file indicating the type
    * @memberof Utils
    */
   static identifyFileSystem(aPath) {
-    //const pattern = /^(s3:)|^(http:|https:)|^(\/|\.\.\/|\.\/|\w*)/;
     const matches = /^(s3:)|^(http:|https:)|^(\/|\.\.\/|\.\/|\w*)/.exec(aPath.toLowerCase());
     return ["s3", "http", "file"][matches.slice(1).findIndex((match) => match > "")] || "unknown";
   }
 
 
-  static vinylise2(aPath) {
-    const vinylize = {
+  /**
+   * A precursor to the replacement of Vinylise that automatically determines the file source (e.g. local, s3, etc) 
+   * @static
+   * @param {string} pathname:  The full pathname to examine and convert
+   * @returns {object}:         A Vinyl-like object
+   * @memberof Utils
+   */
+  static vinylise2(pathname) {
+    // Initialise and empty placeholder 
+    const vinylize = {};
 
-    };
-
-    switch (Utils.identifyFileSystem(aPath)) {
+    switch (Utils.identifyFileSystem(pathname)) {
       case "s3":
         vinylize.type = "s3";
         vinylize.region = "us-east-1";
-        const u = new URL(aPath);
+        const u = new URL(pathname);
         vinylize.bucket = u.host;
         vinylize.path = u.pathname.slice(1); // S3 keys are not rooted at /. E.g. there is no leading / in an S3 key.
         break;
@@ -122,6 +122,7 @@ class Utils {
 
     return vinylize;
   }
+
 
   /**
    * Parses the supplied data object into a Vinyl-like structure that can be used with the Vinyl constructor later

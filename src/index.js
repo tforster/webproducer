@@ -94,11 +94,6 @@ class WebProducer {
   }
 
   /**
- 
-   * @memberof WebProducer
-   */
-
-  /**
    * Entry point into WebProducer
    *
    * @param {object} options: Additional options typically passed at runtime to temporarily alter the behaviour of WebProducer

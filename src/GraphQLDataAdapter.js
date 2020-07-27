@@ -12,10 +12,12 @@ class GraphQLDataAdapter {
   /**
    * Fetch wrapper around the provided GraphQL endpoint and GraphQL query
    * @static
-   * @param {hash} options:     Includes GraphQL endpoint, DatoCMS token, etc
-   * @param {boolean} preview:  True to retrieve unpublished (aka draft) content
-   * @returns
-   * @memberof GraphQLDataSource
+   * @param {string} endpoint:            The GraphQL fully qualified HTTP endpoint to execute the query against
+   * @param {string} query:               The GraphQL query to execute
+   * @param {string} token:               The optional auth token required by the GraphQL provider
+   * @param {boolean} [published=false]:  True to fetch published items, false to fetch all items including drafts
+   * @returns {json}:                     The JSON representation of the resulting data
+   * @memberof GraphQLDataAdapter
    */
   static async data(endpoint, query, token, published = false) {
     if (!token || token === "undefined") {
@@ -54,20 +56,19 @@ class GraphQLDataAdapter {
   }
 
   /**
-   *
    * Rewrites the URL to account for provider specific syntax when selecting draft vs published items
    * @static
-   * @param {*} provider
-   * @param {*} url
-   * @param {*} published
-   * @returns
+   * @param {string} provider:    The GraphQL provider. Currently supports DatoCMS and CosmicJS. Others will be added as required.
+   * @param {string} endpoint:    The GraphQL fully qualified HTTP endpoint to execute the query against
+   * @param {boolean} published:  True to fetch published items, false to fetch all items including drafts
+   * @returns {string}:           Returns a modified URL with any query parameters required by the provider
    * @memberof GraphQLDataAdapter
    */
-  static _providerPublished(provider, url, published) {
+  static _providerPublished(provider, endpoint, published) {
     switch (provider) {
       case "datocms":
         if (published) {
-          url.pathname = "preview";
+          endpoint.pathname = "preview";
         }
         break;
       case "cosmicjs":
@@ -75,7 +76,7 @@ class GraphQLDataAdapter {
       default:
         throw new Error("Unrecognised provider for publish status");
     }
-    return url;
+    return endpoint;
   }
 }
 
