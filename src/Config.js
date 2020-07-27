@@ -30,10 +30,11 @@ class Config {
 
     // Parse the config string
     try {
-      // Replace ${env:xxx} with environment variable
-      const pattern = /\$\{\w*:(\w*)\}$/gim;
-      configString = configString.replace(pattern, (match, p1, p2) => process.env[p1]);
+      // Expand ${env:xxx} with environment variable
+      const pattern = /\$\{\w*:(\w*)\}/gim;
+      configString = configString.replace(pattern, (match, p) => process.env[p]);
 
+      // Parse to an object and return
       return YAML.parse(configString, {});
     } catch (err) {
       throw new Error("YAML parsing failed", err);

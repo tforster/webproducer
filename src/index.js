@@ -11,15 +11,15 @@ const vfs = require("vinyl-fs");
 // Project dependencies
 const CloudFront = require("./CloudFront");
 const Config = require("./Config");
-const GraphQLDataProvider = require("./GraphQLDataProvider");
+const DataSource = require("./DataSource");
 const MergeStream = require("./MergeStream");
 const StreamUtils = require("./StreamUtils");
 const Utils = require("./Utils");
-const vs3 = require("./Vinyl-s3");
+const vs3 = require("./S3FileAdapter");
 const PageBuilder = require("./PageBuilder");
 
 /**
- * Website and web-app agnostic class implementing a "build" process that merges handlebars templates with GraphQL data to produce
+ * Website and web-app agnostic class implementing a "build" process that merges handlebars templates with JSON data to produce
  * static output.
  * @class WebProducer
  */
@@ -41,10 +41,29 @@ class WebProducer {
       throw new Error("Could not find any configuration");
     }
 
-    // Get configuration of the source and destination folders (could local, S3, etc)
-    this.src = Utils.vinylise(this.config.templateSource);
-    this.dest = Utils.vinylise(this.config.destination);
+    // Get configuration for the data source
+    if (typeof this.config.data === "string") {
+      this.data = this.config[this.config.data];
+    } else {
+      this.data = this.config.data;
+    }
+    console.log(`>>> data: ${this.data.path}`);
+
+    // Get configuration for the template source
+    if (typeof this.config.templates === "string") {
+      this.src = Utils.vinylise(this.config[this.config.templates]);
+    } else {
+      this.src = Utils.vinylise(this.config.templates);
+    }
     console.log(`>>> src:  ${this.src.path}`);
+
+    // Get configuration for the destination source
+    if (typeof this.config.destination === "string") {
+      this.dest = Utils.vinylise(this.config[this.config.destination]);
+    } else {
+      this.dest = Utils.vinylise(this.config.destination);
+    }
+
     console.log(`>>> dest: ${this.dest.path || this.dest.bucket || "n/a"}`);
   }
 
@@ -56,6 +75,7 @@ class WebProducer {
   _prepareStreams() {
     // Set the sourceStream to either a VinylFS or Vinyl-S3 stream
     const srcStreamReadable = this.src.type === "s3" ? new vs3(this.src) : vfs;
+
     // Set the readable and writable destination streams to either a VinylFS or Vinyl-S3 stream
     let destStreamWritable;
     // Read the contents of the destination pre-deployment so we can calculate a diff and only deploy changed files
@@ -75,11 +95,21 @@ class WebProducer {
 
   /**
    * Entry point into WebProducer
+   *
+   * @param {object} options: Additional options typically passed at runtime to temporarily alter the behaviour of WebProducer
+   *                          - debugTransform: Enable breakpoint debugging in transform.js
+   *                          - dataSnapshot:   Save retrieved data to the current data meta path as data.json
    * @memberof WebProducer
    */
-  async main() {
+  async main(options) {
     // Shortcut to access config
     const config = this.config;
+
+    // Set debugTransform true to be passed into dynamically loaded Transform module to enable breakpoint debugging
+    this.data.debugTransform = options.debugTransform;
+    // Set snapshot true to save the retrieved data (usually via GraphQL) to the current data meta path
+    this.data.snapshot = options.snapshot;
+
     // Instantiate various classes
     const pageBuilder = new PageBuilder();
     const streamUtils = new StreamUtils();
@@ -93,14 +123,17 @@ class WebProducer {
     // Template source is expected to be in a stage specific and lower cased subfolder, eg, /dev, /stage or /prod
     const srcRoot = this.src.base;
 
-    // Parallelise fetching data from API, precompiling templates and all from async stream reading
-    var [siteData, _] = await Promise.all([
-      // Wait for our GraphQL data that in turn needs to wait for the contents of graphql.query and transform.js
-      await GraphQLDataProvider.data(srcStreamReadable.src(`${srcRoot}/db/**/*`), config),
-      // Precompile all .hbs templates into the vhandlebars object from the stream
-      pageBuilder.precompile(srcStreamReadable.src(`${srcRoot}/theme/**/*.hbs`)),
-    ]);
-
+    try {
+      // Parallelise fetching data from API, precompiling templates and all from async stream reading
+      var [siteData, _] = await Promise.all([
+        // Wait for our data source to return from any remote retrieval, database queries and transformations
+        await DataSource.data(this.data),
+        // Precompile all .hbs templates into the vhandlebars object from the stream
+        pageBuilder.precompile(srcStreamReadable.src(`${srcRoot}/theme/**/*.hbs`)),
+      ]);
+    } catch (err) {
+      console.error(err);
+    }
     // Quick check to ensure we have actual data to work with
     if (!siteData || Object.entries(siteData).length === 0) {
       throw new Error("No data provided");
@@ -116,7 +149,7 @@ class WebProducer {
     // Loose files are all non-transformable resources like fonts, robots.txt, etc. Note that we ignore db, scripts, theme, etc.
     const looseFiles = srcStreamReadable.src([
       `${srcRoot}/**/*.*`,
-      `!${srcRoot}/db/**`,
+      `!${srcRoot}/data/**`,
       `!${srcRoot}/scripts/**`,
       `!${srcRoot}/stylesheets/**`,
       `!${srcRoot}/theme/**`,

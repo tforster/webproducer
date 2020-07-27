@@ -9,17 +9,16 @@ const micromatch = require("micromatch");
 const Vinyl = require("vinyl");
 
 // Project dependencies
-const Utils = require("./Utils");
 
 /**
  * Implements Gulp-like dest() function to terminate a piped process by uploading the supplied Vinyl file to AWS S3
- * @class VinylS3
+ * @class S3FileAdapter
  */
-class VinylS3 {
+class S3FileAdapter {
   /**
-   * Creates an instance of VinylS3.
-   * @param {*} options
-   * @memberof VinylS3
+   * Creates an instance of S3FileAdapter.
+   * @param {object} options: A hash of options
+   * @memberof S3FileAdapter
    */
   constructor(options) {
     // Set objectMode true as we are processing whole Vinyl files, not chunks of a single file
@@ -34,14 +33,12 @@ class VinylS3 {
   }
 
   /**
-   *
-   *
-   * @param {*} globs
-   * @returns
-   * @memberof VinylS3
+   * @param {string} globs: A glob pattern
+   * @returns {method}:     Returns a new instance of the private method ._src()
+   * @memberof S3FileAdapter
    */
   src(globs, head = false) {
-    const self = new VinylS3(this.options);
+    const self = new S3FileAdapter(this.options);
     self.keys = null;
 
     // Call our override method
@@ -51,10 +48,10 @@ class VinylS3 {
   /**
    *
    *
-   * @param {string} globs:
-   * @param {boolean} head: Used to determine whether to fetch full file contents or just ETag headers
-   * @returns
-   * @memberof VinylS3
+   * @param {string} globs:       A glob pattern
+   * @param {boolean} head:       Used to determine whether to fetch full file contents or just ETag headers
+   * @returns {Readable Stream}:  A stream populated with entries matching the provided glob
+   * @memberof S3FileAdapter
    */
   _src(globs, head) {
     const self = this;
@@ -142,7 +139,7 @@ class VinylS3 {
           // Push the Vinyl object into the stream
           readable.push(vinyl);
         } catch (err) {
-          console.error("Vinyl-s3._read()", err, key, vinylParams);
+          console.error("s3FileAdapter._read()", err, key, vinylParams);
           throw err;
         }
       } else {
@@ -161,7 +158,7 @@ class VinylS3 {
           // Push the Vinyl object into the stream
           readable.push(vinyl);
         } catch (err) {
-          console.error("Vinyl-s3._read()", err, key, vinylParams);
+          console.error("s3FileAdapter._read()", err, key, vinylParams);
           throw err;
         }
       }
@@ -173,12 +170,11 @@ class VinylS3 {
   /**
    * Utility handler for easily creating Vinyl files. Currently used by _src() but should be moved to Utils and made available to
    * a wider range of modules.
-   *
    * @param {object} globPattern: An object containing results of the micromatch including the glob base. e.g. stage/db
    * @param {string} globbedPath: The path. e.g. stage/db/query.graphql
    * @param {Buffer} contents:    An optional Buffer with the file contents (would be empty for a directory)
    * @returns:                    A fully qualified Vinyl object c/w contents (if applicable) and fsStat value
-   * @memberof VinylS3
+   * @memberof S3FileAdapter
    */
   _vinyl(globPattern, globbedPath, contents) {
     // Create the file mode based on the presence of a trailing slash
@@ -203,7 +199,7 @@ class VinylS3 {
    * @param {object} config:      The parsed S3 data from config.yml
    * @param {string} [folder=""]: The optional folder in the S3 bucket to write to (e.g. /dist/prod, etc)
    * @returns {WritableStream}:   A writeable stream
-   * @memberof VinylS3
+   * @memberof S3FileAdapter
    */
   static dest(config, folder = "") {
     const Bucket = config.bucket;
@@ -238,7 +234,7 @@ class VinylS3 {
           .upload(params)
           .promise()
           .catch((reason) => {
-            console.error("VinylS3.dest:s3.upload:", reason);
+            console.error("S3FileAdapter.dest:s3.upload:", reason);
             throw reason;
           });
         done();
@@ -250,4 +246,4 @@ class VinylS3 {
   }
 }
 
-module.exports = VinylS3;
+module.exports = S3FileAdapter;
