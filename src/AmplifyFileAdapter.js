@@ -11,7 +11,7 @@ const fetch = require("node-fetch");
  * A wrapper around the minimum required AWS Amplify methods required to deploy the built web artifacts
  * @class Amplify
  */
-class VinylAmplify {
+class AmplifyFileAdapter {
   /**
    * Possible new dest() method for consuming readable streams and a replacement for .deploy(). Depends whether we can determine
    * what the AWS API is for POSTing zipUploadUrl obtained from Amplify.createDeployment(). No known documentation exists at this
@@ -25,7 +25,7 @@ class VinylAmplify {
   static dest(props) {
     const writable = new Writable({ objectMode: true });
 
-    writable._write = async function(file, _, done) {
+    writable._write = async function (file, _, done) {
       if (file.basename !== "archive.zip") {
         // We only expect a single file called archive.zip
         throw new Error("File archive.zip not found.");
@@ -102,4 +102,4 @@ class VinylAmplify {
   }
 }
 
-module.exports = VinylAmplify;
+module.exports = AmplifyFileAdapter;
