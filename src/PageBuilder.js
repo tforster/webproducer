@@ -75,7 +75,16 @@ class PageBuilder {
   async build(data) {
     const templates = this.handlebars.templates;
 
-    const stream = new Readable({
+    // Use htmlStream for strictly HTML Vinyl objects. The htmlStream will be routed through the HTML minifier later.
+    const htmlStream = new Readable({
+      objectMode: true,
+      read: function (vinylFile) {
+        this.push(vinylFile);
+      },
+    });
+
+    // Use fileStream for all non-HTML types including but not limited to sitemap.xml, robots.txt, feed.xml, etc.
+    const fileStream = new Readable({
       objectMode: true,
       read: function (vinylFile) {
         this.push(vinylFile);
@@ -85,46 +94,54 @@ class PageBuilder {
     // Set some counters
     let pages = 0;
     let redirects = 0;
+    let files = 0;
 
     // Iterate all available data elements (note: one per "page")
     for (const key in data) {
-      const fields = data[key];
-      let vinylParams;
+      const pageData = data[key];
 
-      // Only attempt to build a page if the fields data contains a reference to the physical ebs file to use
-      if (fields && fields.modelName && templates[`${fields.modelName}.hbs`]) {
-        // Merge the data element with the template indicated in the data elements modelName property (required)
-        const result = templates[`${fields.modelName}.hbs`](fields);
+      if (pageData && pageData.modelName) {
+        if (templates[`${pageData.modelName}.hbs`]) {
+          // Generate content by merging the pageData into the named Handlebars template
+          const generatedContents = templates[`${pageData.modelName}.hbs`](pageData);
 
-        vinylParams = {
-          path: key.trim().slice(1),
-          contents: Buffer.from(result),
-        };
-        pages++;
-      } else if (fields && fields.modelName && fields.modelName === "redirect") {
-        vinylParams = {
-          path: key.trim().slice(1),
-          contents: Buffer.from(key.trim().slice(1)),
-          redirect: 301,
-          targetAddress: fields.targetAddress,
-        };
-        redirects++;
-      } else {
-        console.error(`Missing modelName for >${key}<`);
-      }
+          // Create a new Vinyl object from the generated data
+          const vinyl = new Vinyl({
+            path: key.trim().slice(1),
+            contents: Buffer.from(generatedContents),
+          });
 
-      // Create and write a new Vinyl object to stream
-      if (vinylParams) {
-        const vinyl = new Vinyl(vinylParams);
-        stream.push(vinyl);
+          // Check whether the resulting Vinyl file is HTML, and push to the appropriate stream, and increase the counter.
+          if (vinyl.extname === "" || vinyl.extname === ".html") {
+            htmlStream.push(vinyl);
+            pages++;
+          } else {
+            fileStream.push(vinyl);
+            files++;
+          }
+        } else if (pageData.modelName === "redirect") {
+          // Redirects are basically text files and don't go through the HTML minifier but we like to count them separate from files
+          const vinyl = new Vinyl({
+            path: key.trim().slice(1),
+            contents: Buffer.from(key.trim().slice(1)),
+            redirect: 301,
+            targetAddress: pageData.targetAddress,
+          });
+          // Note that while we push to fileStream, we increment the redirects counter.
+          redirects++;
+          fileStream.push(vinyl);
+        } else {
+          console.error(`>>> modelName not found for ${key}`);
+        }
       }
     }
 
-    // End the readable stream
-    stream.push(null);
+    // End the readable streams
+    htmlStream.push(null);
+    fileStream.push(null);
 
-    // Return a Promise of the number of pages built
-    return { stream, pages, redirects };
+    // Return a Promise (because we are async) of the streams and counters
+    return { htmlStream, fileStream, pages, redirects, files };
   }
 }
 

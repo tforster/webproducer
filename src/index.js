@@ -140,8 +140,8 @@ class WebProducer {
     }
 
     // Promise.all above resolved with data and precompiled templates from different sources so now we can generate pages.
-    const pages = await pageBuilder.build(siteData);
-
+    const { htmlStream, fileStream, pages, redirects, files } = await pageBuilder.build(siteData);
+    fileStream.name = "fileStream";
     // Merge our streams containing loose files, concatenated scripts, concatenated css and generated HTML into one main stream
 
     // TODO: Make name a parameter than can be passed in on the .src() method for cleaner code here. Has to work with vFS and vS3.
@@ -169,20 +169,20 @@ class WebProducer {
     stylesheets.name = "stylesheets";
 
     // We ignored the stream of handlebars theme files as they were generated earlier and require additional unique handling here
-    const pagesStream = pages.stream.pipe(minifyHtml({ collapseWhitespace: true, removeComments: true }));
+    const pagesStream = htmlStream.pipe(minifyHtml({ collapseWhitespace: true, removeComments: true }));
     pagesStream.name = "pagesStream";
 
     // Promise for parsing destination files deferred to last moment here to allow for async processing. Note that S3 is a long time
     await destinationFilesParsed;
 
     // Merge all the various input streams into one main stream to be parsed
-    const streams = [looseFiles, scripts, stylesheets, pagesStream];
+    const streams = [looseFiles, scripts, stylesheets, pagesStream, fileStream];
 
     // MergedStream is new in 0.5.0 and replaces the previous and more complicated Promise-based code block
     const mergedStream = new MergeStream(streams);
 
     // Don't move beyond this next block until we know everything hasa been written to the destination
-    await new Promise((resolve, reject) => {
+    await new Promise((resolve) => {
       // filterDeployableFiles() compares built files to ETags of existing files to determine the change delta to actually deploy.
       mergedStream.pipe(streamUtils.filterDeployableFiles()).pipe(destStreamWritable);
 
@@ -210,9 +210,11 @@ class WebProducer {
     const endTime = new Date();
 
     console.log(
-      `>>> WebProducer built and deployed ${pages.pages} pages and ${pages.redirects} redirects at ${endTime.toISOString()} (${
-      endTime - this.startTime
-      }ms).`
+      `>>> WebProducer built and deployed:
+        ${pages} pages
+        ${redirects} redirects 
+        ${files} files
+        at ${endTime.toISOString()} (${endTime - this.startTime}ms).`
     );
   }
 }
