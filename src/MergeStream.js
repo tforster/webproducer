@@ -41,7 +41,7 @@ class MergeStream {
 
     // Set up the on end handler for the sourceStream
     inputStream.on("end", () => {
-      console.log(`>>> Unmerged ${inputStream.name}`);
+      console.log(`>>> Merged ${inputStream.name}`);
 
       // Decrement the input streams until none remain and we can manually force end() on the outputStream
       self.inputStreams = self.inputStreams.filter((s) => s !== inputStream);
@@ -57,7 +57,7 @@ class MergeStream {
 
     // Immediately start reading the contents of this sourceStream and piping to the outputStream
     inputStream.pipe(this.outputStream, { end: false });
-    console.log(`>>> Merged ${inputStream.name}`);
+    //console.log(`>>> Merged ${inputStream.name}`);
   }
 }
 

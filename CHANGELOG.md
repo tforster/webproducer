@@ -1,5 +1,9 @@
 # Change Log
 
+v0.7.0 **Separated non-HTML files from HTML minifier** (2020-08-01)
+
+- non-HTML files such as robots.txt, sitemap.xml and feed.xml were being sent through the HTML minifier along with regular HTML files with unexpected results. This has feature bump sees the separation of HTML and non-HTML before HTML minification occurs. Note that non-HTML files are _not_ minified at all now.
+
 v0.6.0 **Static JSON Files** (2020-07-26)
 
 Breaking changes:
