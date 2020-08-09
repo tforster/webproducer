@@ -1,5 +1,17 @@
 # Change Log
 
+v0.7.1 **Fixes the meta vs path issue** (2020-08-09)
+
+Breaking changes:
+
+- The data and data/meta paths are now expected to be in the root of the templates path for both FS and S3. Specifying a datasource in webproducer.yml for file based sources is no longer required. Datasource are only necessary for GraphQL.
+- The path parameter in webproducer.yml has been renamed to base to make it easier to add path snippets for include/exclude globs (coming soon). Note base over root since it is an established convention with the Vinyl specification that is used by WebProducer.
+- See the [README](README.md) for an example of the latest webproducer.yml syntax.
+
+Fixes:
+
+- [`735: Regression issue means local data.json files are not found`](https://dev.azure.com/techsmarts/Web%20Producer/_workitems/edit/735)
+
 v0.7.0 **Separated non-HTML files from HTML minifier** (2020-08-01)
 
 - non-HTML files such as robots.txt, sitemap.xml and feed.xml were being sent through the HTML minifier along with regular HTML files with unexpected results. This has feature bump sees the separation of HTML and non-HTML before HTML minification occurs. Note that non-HTML files are _not_ minified at all now.

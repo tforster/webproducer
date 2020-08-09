@@ -131,7 +131,7 @@ class PageBuilder {
           redirects++;
           fileStream.push(vinyl);
         } else {
-          console.error(`>>> modelName not found for ${key}`);
+          console.error(`${new Date().toISOString()}> modelName not found for ${key}`);
         }
       }
     }

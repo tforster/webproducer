@@ -46,11 +46,11 @@ class Utils {
     const metaType = Utils.identifyFileSystem(meta);
     const snapshotPath = path.join(meta, filename);
     if (metaType !== "file") {
-      console.error(`>>> Skipping ${snapshotPath}. Utils.saveFile only supports local filesystems at this time. Message only. No error will be thrown.`);
+      console.error(`${new Date().toISOString()}> Skipping ${snapshotPath}. Utils.saveFile only supports local filesystems at this time. Message only. No error will be thrown.`);
       return;
     }
     const promise = fs.writeFile(snapshotPath, data);
-    console.log(`>>> Saved ${snapshotPath}.`);
+    console.log(`${new Date().toISOString()}> Saved ${snapshotPath}.`);
     return promise;
   }
 
@@ -94,7 +94,7 @@ class Utils {
     switch (Utils.identifyFileSystem(pathname)) {
       case "s3":
         vinylize.type = "s3";
-        vinylize.region = "us-east-1";
+        //vinylize.region = "us-east-1";
         const u = new URL(pathname);
         vinylize.bucket = u.host;
         vinylize.path = u.pathname.slice(1); // S3 keys are not rooted at /. E.g. there is no leading / in an S3 key.
@@ -135,7 +135,7 @@ class Utils {
   static vinylise(fileDescriptor) {
     const vinylize = {
       type: fileDescriptor.type,
-      path: fileDescriptor.path.toLowerCase(),
+      path: (fileDescriptor.path || fileDescriptor.base).toLowerCase(),
     };
 
     switch (vinylize.type) {

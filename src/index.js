@@ -31,7 +31,7 @@ class WebProducer {
    */
   constructor(configPathOrString) {
     this.startTime = new Date();
-    console.log(`>>> WebProducer started at ${this.startTime.toISOString()}`);
+    console.log(`${new Date().toISOString()}> WebProducer started`);
 
     // set the configuration after parsing the config YAML or file pointing to YAML
     try {
@@ -41,30 +41,58 @@ class WebProducer {
       throw new Error("Could not find any configuration");
     }
 
-    // Get configuration for the data source
-    if (typeof this.config.data === "string") {
-      this.data = this.config[this.config.data];
-    } else {
-      this.data = this.config.data;
-    }
-    console.log(`>>> data: ${this.data.path}`);
-
-    // Get configuration for the template source
+    // Vinylise the template data
     if (typeof this.config.templates === "string") {
-      this.src = Utils.vinylise(this.config[this.config.templates]);
-    } else {
-      this.src = Utils.vinylise(this.config.templates);
+      // Deserialise config.data from an alias
+      this.config.templates = this.config[this.config.templates];
     }
-    console.log(`>>> src:  ${this.src.path}`);
+    this.src = Utils.vinylise(this.config.templates);
+    console.log(`${new Date().toISOString()}> Templates:   ${this.config.templates.base}`);
 
-    // Get configuration for the destination source
+    // Vinylise the destination data
     if (typeof this.config.destination === "string") {
-      this.dest = Utils.vinylise(this.config[this.config.destination]);
-    } else {
-      this.dest = Utils.vinylise(this.config.destination);
+      // Deserialise config.data from an alias
+      this.config.destination = this.config[this.config.destination];
+    }
+    this.dest = Utils.vinylise(this.config.destination);
+    console.log(`${new Date().toISOString()}> Destination: ${this.config.destination.base}`);
+
+    // Setup data object describing data and meta sources
+    this.data = this._getDataSource(this.config.templates);
+    console.log(
+      `${new Date().toISOString()}> Data:        ${
+      this.data.endpoint ? this.data.endpoint.base + "/data" : this.data.path + "/data"
+      }`
+    );
+    console.log(`${new Date().toISOString()}> Meta:        ${this.data.path + "/data/meta"}`);
+  }
+
+  /**
+   * @returns {object}:       A definition of the data and meta sources including any properties necessary to access S3, FS, GQL...
+   * @memberof WebProducer
+   */
+  _getDataSource(templates) {
+    const config = this.config;
+
+    // Data default path and meta always come from templates location. E.g. /data and /data/meta
+    const dataSource = {
+      type: templates.type,
+      path: templates.base,
+      region: templates.region,
+    };
+
+    // If config.data is specified then it must be an endpoint such as GraphQL or REST
+    if (config.data) {
+      // First, deserialise config.data is an alias to an actual config.data object
+      if (typeof config.data === "string") {
+        // Deserialise config.data from an alias
+        config.data = config[config.data];
+      }
+      dataSource.endpoint = config.data;
+      //dataSource.endpoint = config.data;
     }
 
-    console.log(`>>> dest: ${this.dest.path || this.dest.bucket || "n/a"}`);
+    return dataSource;
   }
 
   /**
@@ -187,7 +215,7 @@ class WebProducer {
       mergedStream.pipe(streamUtils.filterDeployableFiles()).pipe(destStreamWritable);
 
       destStreamWritable.on("finish", async () => {
-        console.log(">>> Finished deploying new and updated files.");
+        console.log(`${new Date().toISOString()}> Finished deploying new and updated files.`);
         resolve();
       });
     });
@@ -202,7 +230,7 @@ class WebProducer {
         paths: streamUtils.destinationUpdates,
         region: this.dest.region,
       });
-      console.log(`>>> Requested CloudFront invalidation: ${retval.Id}.`);
+      console.log(`${new Date().toISOString()}> Requested CloudFront invalidation: ${retval.Id}.`);
     }
 
     // delete files
@@ -210,11 +238,9 @@ class WebProducer {
     const endTime = new Date();
 
     console.log(
-      `>>> WebProducer built and deployed:
-        ${pages} pages
-        ${redirects} redirects 
-        ${files} files
-        at ${endTime.toISOString()} (${endTime - this.startTime}ms).`
+      `${new Date().toISOString()}> WebProducer built and deployed: ${pages} pages, ${redirects} redirects and ${files} files in ${
+      endTime - this.startTime
+      }ms.`
     );
   }
 }
