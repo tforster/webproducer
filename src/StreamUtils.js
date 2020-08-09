@@ -41,7 +41,7 @@ class StreamUtils {
     const transform = new Transform({
       objectMode: true,
       transform: function (vinylFile, _, done) {
-        console.log(`>>> Moved ${vinylFile.path} to ${newPath} for ${vinylFile.basename}`);
+        console.log(`${new Date().toISOString()}> Moved ${vinylFile.path} to ${newPath} for ${vinylFile.basename}`);
         vinylFile.path = newPath;
         done(false, vinylFile);
       },
@@ -169,7 +169,7 @@ class StreamUtils {
           if (self.destinationReads[relative].eTag !== eTag) {
             // vinylFile is different than the original
             self.destinationUpdates.push(relative);
-            console.log("UPDATE:", relative);
+            console.log(`${new Date().toISOString()}> Update:      ${relative}`);
             done(false, vinylFile);
           } else {
             done(false);
@@ -177,7 +177,7 @@ class StreamUtils {
         } else {
           // vinylFile is new
           self.destinationCreates.push(relative);
-          console.log("CREATE:", relative);
+          console.log(`${new Date().toISOString()}> Create:      ${relative}`);
           done(false, vinylFile);
         }
       },
@@ -188,7 +188,7 @@ class StreamUtils {
     });
 
     transform.on("finish", () => {
-      console.log(">>> Finished filtering deployable files.");
+      console.log(`${new Date().toISOString()} > Finished filtering deployable files.`);
     });
 
     return transform;

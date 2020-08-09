@@ -35,78 +35,78 @@ Clone this repository as your new project `git clone git@github.com:tforster/web
 
 ## Usage
 
-1. Install using your preferred package manager. E.g. `npm i -S git+ssh://git@github.com/tforster/webproducer.git`
+1. Install using your preferred package manager. E.g. `npm i -S git+ssh://git@github.com/tforster/webproducer.git#semver:v0.7.1`
 1. Create webproducer.yml. The following example shows multiple formats for data, templates and destination by way of aliases introduced in 0.6.0.
 
    ```yml
    data: ${env:DATA_ALIAS} # Uses an environment variable to specify an alias
-   templates: template-filesystem # Points to an alias
+   templates: template-fs # Points to an alias
    destination: # References the destination object directly
      type: filesystem
-     path: ./dist
-     archive: false
+     base: ./dist
+     archive: false # default
 
    ####################
    # Template Aliases #
    ####################
 
-   template-filesystem:
+   template-fs:
      type: filesystem
-     path: ./src
+     base: ./src
+
+   template-s3:
+     type: s3
+     base: s3://wp.somedomain.com/${env:STAGE}
+     region: ca-central-1
 
    #######################
    # Destination Aliases #
    #######################
 
-   destination-filesystem:
+   destination-fs:
      type: filesystem
-     path: ./dist
-     archive: false
+     base: ./dist
+     archive: false # default
+
+   destination-s3:
+     type: s3
+     base: s3://www.somedomain.com
+     region: ca-central-1
+     archive: false # default
 
    ################
    # Data Aliases #
    ################
 
-   data-fs:
-     type: filesystem
-     meta: ./src/data
-
-   data-graphql:
+   data-gql:
      type: graphql
-     endpoint: https://graphql.datocms.com/
-     meta: s3://mybucket/${env:STAGE}/data # References an S3 bucket and staged key previx
-     region: ca-central-1 # S3 meta references currently require the region to be provided
-     token: ${env:GRAPHQL_API_TOKEN} # Uses an environment variable to hide sensitive data from Git commits
-
-   data-s3:
-     type: s3
-     meta: s3://mybucket/${env:STAGE}/data
-     region: ca-central-1
+     base: https://graphql.datocms.com/
+     token: ${env:GRAPHQL_API_TOKEN}
+     published: ${env:PUBLISHED}
 
    data-get-request: # REST not implemented. Future consideration only.
      type: get
-     endpoint: https://some-endpoint.com/this/that
+     base: https://some-endpoint.com/this/that
 
    data-sql: # SQL not implemented. Future consideration only.
      type: sql
-     endpoint: Server=myServerName\myInstanceName;Database=myDataBase;User Id=${env:DB_USERNAME};Password=${env:DB_PASSWORD};
-     meta: ./src/data/meta
+     base: Server=myServerName\myInstanceName;Database=myDataBase;User Id=${env:DB_USERNAME};Password=${env:DB_PASSWORD};
 
    data-mongodb: # Mongo not implemented. Future consideration only.
      type: mongo
-     endpoint: mongodb://mongodb0.example.com:27017
-     meta: s3://mybucket/stage/data/meta
-     region: us-east-1
-   # path: A pointer to the root of the data. E.g. a single file containing the data or a database via  connection string
-   # meta: A filesystem or S3 bucket path containing one or both of a query and transform module. Types graphql, sql and mongo all
-   #       require meta with at least a query
+     base: mongodb://mongodb0.example.com:27017
    ```
 
-1. Create .env
+1. Create .env file using the following schema. Note that most of the parameters are not secrets and could easily be stored in webproducer.yml, however, we have found that externalising to the .env file makes it easier to toggle between template and destination locations during development of a consuming app.
 
    ```bash
-   GRAPHQL_API_TOKEN=****************************** # If using a GraphQL data source
-   STAGE=stage # One of dev, stage or prod
+   ALIAS_DATA=data-gql               # Alias the data source
+   ALIAS_TEMPLATES=template-s3       # Alias the template source
+   ALIAS_DESTINATION=destination-s3  # Alias the destination source
+   GRAPHQL_API_TOKEN=***             # Only needed if you are using GraphQL and on a private endpoint
+   STAGE=stage                       # One of dev, stage or prod
+   PUBLISHED=true                    # Typically only required for GraphQL to distinguish between draft and published content
+   CLOUDFRONT_ID=                    # The production CloudFront distribution to invalidate on deploy. Leave blank for dev and stage
    ```
 
 ## Change Log
