@@ -8,7 +8,7 @@ const { Writable } = require("stream");
 const vfs = require("vinyl-fs");
 
 // Project dependencies
-const GraphQLDataAdapter = require("@tforster/webproducer/src/GraphQLDataAdapter");
+const GraphQLDataAdapter = require("./GraphQLDataAdapter");
 const Utils = require("./Utils");
 const s3FileAdapter = require("./S3FileAdapter");
 

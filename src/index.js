@@ -61,7 +61,7 @@ class WebProducer {
     this.data = this._getDataSource(this.config.templates);
     console.log(
       `${new Date().toISOString()}> Data:        ${
-      this.data.endpoint ? this.data.endpoint.base + "/data" : this.data.path + "/data"
+        this.data.endpoint ? this.data.endpoint.base + "/data" : this.data.path + "/data"
       }`
     );
     console.log(`${new Date().toISOString()}> Meta:        ${this.data.path + "/data/meta"}`);
@@ -221,12 +221,12 @@ class WebProducer {
     });
 
     // We want to invalidate ASAP and the risk of the few extra ms here vs deleting files no longer required is ok
-    if (config.destination.webserver && config.destination.webserver.cloudFrontDistributionId && streamUtils.destinationUpdates) {
+    if (config.destination.cloudFrontDistributionId && streamUtils.destinationUpdates) {
       // CloudFront requires "/" rooted paths, whereas our paths are not "/" rooted elsewhere in this system
       streamUtils.destinationUpdates = streamUtils.destinationUpdates.map((path) => `/${path}`);
 
       const retval = await CloudFront.createInvalidation({
-        distributionId: config.destination.webserver.cloudFrontDistributionId,
+        distributionId: config.destination.cloudFrontDistributionId,
         paths: streamUtils.destinationUpdates,
         region: this.dest.region,
       });
@@ -239,7 +239,7 @@ class WebProducer {
 
     console.log(
       `${new Date().toISOString()}> WebProducer built and deployed: ${pages} pages, ${redirects} redirects and ${files} files in ${
-      endTime - this.startTime
+        endTime - this.startTime
       }ms.`
     );
   }
