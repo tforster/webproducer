@@ -1,17 +1,48 @@
 {
-  "name": "@tforster/webproducer",
-  "version": "0.7.1",
-  "description": "WebProducer, or simply WP, is a serverless application for publishing content to the web. It equally supports websites and web applications with a lean, streams based, architecture.",
-  "author": "",
-  "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/tforster/webproducer.git"
+  "author": "Troy Forster <troy.forster@gmail.com> (https://www.tforster.com)",
+  "bin": {
+    "webproducer": "scripts/cli/index.js"
   },
-  "files": [
-    "src",
-    "README.md"
-  ],
+  "bugs": {
+    "url": "https://github.com/tforster/webproducer/issues"
+  },
+  "dependencies": {
+    "autoprefixer": "^10.4.20",
+    "esbuild": "^0.24.2",
+    "handlebars": "^4.7.8",
+    "html-minifier": "^4.0.0",
+    "mime": "^4.0.6",
+    "postcss": "^8.4.49",
+    "vinyl": "3.0.0"
+  },
+  "description": "WebProducer, or simply WP, is a serverless application for publishing content to the web. It equally supports websites and web applications with a lean, streams based, architecture.",
+  "devDependencies": {
+    "@eslint/compat": "^1.2.5",
+    "@eslint/js": "^9.18.0",
+    "@eslint/json": "^0.9.0",
+    "@eslint/markdown": "^6.2.1",
+    "@types/node": "^22.10.5",
+    "commander": "^13.0.0",
+    "eslint": "^9.18.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-html": "^8.1.2",
+    "eslint-plugin-import": "^2.31.0",
+    "eslint-plugin-node": "^11.1.0",
+    "eslint-plugin-prettier": "^5.2.1",
+    "globals": "^15.14.0",
+    "minimatch": "^10.0.1",
+    "prettier": "^3.4.2",
+    "vinyl-fs": "4.0.0"
+  },
+  "overrides": {
+    "glob-parent": "5.1.2",
+    "lodash": "4.17.21"
+  },
+  "funding": {
+    "type": "patreon",
+    "url": "https://www.patreon.com/tforster"
+  },
+  "homepage": "https://github.com/tforster/webproducer#readme",
   "keywords": [
     "npm",
     "serverless",
@@ -24,37 +55,24 @@
     "web",
     "app"
   ],
-  "bugs": {
-    "url": "https://github.com/tforster/webproducer/issues"
-  },
-  "homepage": "https://github.com/tforster/webproducer#readme",
-  "devDependencies": {
-    "eslint": "^6.7.2",
-    "eslint-config-prettier": "^6.7.0",
-    "eslint-plugin-html": "^6.0.0",
-    "eslint-plugin-prettier": "^3.1.2",
-    "prettier": "^2.0.5",
-    "serverless": "^1.71.3",
-    "serverless-dotenv-plugin": "^2.1.1",
-    "serverless-offline": "^5.12.1"
-  },
+  "license": "MIT",
   "main": "src/index.js",
-  "scripts": {
-    "debug": "node --inspect-brk=9229 ./node_modules/.bin/serverless offline"
+  "name": "@tforster/webproducer",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tforster/webproducer.git"
   },
-  "dependencies": {
-    "aws-sdk": "^2.594.0",
-    "gulp-clean-css": "^4.2.0",
-    "gulp-htmlmin": "^5.0.1",
-    "gulp-sourcemaps": "^2.6.5",
-    "gulp-terser": "^1.2.0",
-    "handlebars": "^4.7.6",
-    "jszip": "^3.2.2",
-    "micromatch": "^4.0.2",
-    "mime": "^2.4.6",
-    "node-fetch": "^2.6.0",
-    "vinyl": "^2.2.0",
-    "vinyl-fs": "^3.0.3",
-    "yaml": "^1.10.0"
+  "type": "module",
+  "version": "1.0.0-beta.4",
+  "files": [
+    "/src",
+    "/scripts"
+  ],
+  "directories": {
+    "doc": "docs",
+    "example": "examples"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
   }
 }
