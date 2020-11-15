@@ -188,7 +188,7 @@ class StreamUtils {
     });
 
     transform.on("finish", () => {
-      console.log(`${new Date().toISOString()} > Finished filtering deployable files.`);
+      console.log(`${new Date().toISOString()}> Finished filtering deployable files.`);
     });
 
     return transform;
