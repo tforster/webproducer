@@ -29,7 +29,7 @@ class WebProducer {
    * @param {string} configPathOrString:  String of YAML or path to a YAML file containing configuration settings
    * @memberof WebProducer
    */
-  constructor(configPathOrString) {
+  constructor(configPathOrString, TransformModule) {
     this.startTime = new Date();
     console.log(`${new Date().toISOString()}> WebProducer started`);
 
@@ -59,6 +59,11 @@ class WebProducer {
 
     // Setup data object describing data and meta sources
     this.data = this._getDataSource(this.config.templates);
+
+    if (TransformModule) {
+      this.data.TransformModule = TransformModule;
+    }
+
     console.log(
       `${new Date().toISOString()}> Data:        ${
         this.data.endpoint ? this.data.endpoint.base + "/data" : this.data.path + "/data"
@@ -125,7 +130,6 @@ class WebProducer {
    * Entry point into WebProducer
    *
    * @param {object} options: Additional options typically passed at runtime to temporarily alter the behaviour of WebProducer
-   *                          - debugTransform: Enable breakpoint debugging in transform.js
    *                          - dataSnapshot:   Save retrieved data to the current data meta path as data.json
    * @memberof WebProducer
    */
