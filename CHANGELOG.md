@@ -16,6 +16,11 @@ All released versions are available as [Releases on this repository](https://git
 
 ## History
 
+`v0.8.0` **Shift transform logic from transform.js to Transform module** (2020-12-13)
+
+- [Remove references to transform.js in documentation](https://dev.azure.com/techsmarts/TechSmarts/_workitems/edit/830)
+- [Refactor index.js and DataSource.js to accept the new Transform module capability](https://dev.azure.com/techsmarts/TechSmarts/_workitems/edit/831)
+
 `v0.7.2` **Fixes CloudFront not invalidating issue** (2020-11-15)
 
 - [CloudFront invalidations are "too" strict](https://dev.azure.com/techsmarts/TechSmarts/_workitems/edit/743)
