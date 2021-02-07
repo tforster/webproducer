@@ -3,6 +3,7 @@
 
 // Third party dependencies (Typically found in public NPM packages)
 const cleanCSS = require("gulp-clean-css");
+const concat = require('gulp-concat')
 const minifyHtml = require("gulp-htmlmin");
 const sourcemaps = require("gulp-sourcemaps");
 const terser = require("gulp-terser");
@@ -182,14 +183,14 @@ class WebProducer {
     const looseFiles = srcStreamReadable.src([
       `${srcRoot}/**/*.*`,
       `!${srcRoot}/data/**`,
-      `!${srcRoot}/scripts/**`,
+      `!${srcRoot}/**/*.js`,
       `!${srcRoot}/stylesheets/**`,
       `!${srcRoot}/theme/**`,
     ]);
     looseFiles.name = "looseFiles";
 
     // We ignored scripts above as they require unique handling
-    const scripts = srcStreamReadable.src(`${srcRoot}/scripts/**/*.js`).pipe(terser()).pipe(sourcemaps.write("/"));
+    const scripts = srcStreamReadable.src(`${srcRoot}/**/*.js`).pipe(concat('main.js')).pipe(terser()).pipe(sourcemaps.write("/"));
     scripts.name = "scripts";
 
     // We ignored stylesheets above as they require unique handling

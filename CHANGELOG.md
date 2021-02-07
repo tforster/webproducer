@@ -16,6 +16,16 @@ All released versions are available as [Releases on this repository](https://git
 
 ## History
 
+`v0.9.0` **Support JS and CSS file bundling**
+
+Features
+
+- [Support JS and CSS file bundling](https://dev.azure.com/techsmarts/TechSmarts/_workitems/edit/334)
+ 
+Fixes
+
+- [Published env variable logic is flipped](https://dev.azure.com/techsmarts/TechSmarts/_workitems/edit/762)
+
 `v0.8.0` **Shift transform logic from transform.js to Transform module** (2020-12-13)
 
 - [Remove references to transform.js in documentation](https://dev.azure.com/techsmarts/TechSmarts/_workitems/edit/830)
