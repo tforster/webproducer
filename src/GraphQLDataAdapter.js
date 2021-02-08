@@ -67,7 +67,7 @@ class GraphQLDataAdapter {
   static _providerPublished(provider, endpoint, published) {
     switch (provider) {
       case "datocms":
-        if (published) {
+        if (!published) {
           endpoint.pathname = "preview";
         }
         break;
