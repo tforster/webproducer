@@ -184,20 +184,21 @@ class WebProducer {
       `${srcRoot}/**/*.*`,
       `!${srcRoot}/data/**`,
       `!${srcRoot}/**/*.js`,
-      `!${srcRoot}/stylesheets/**`,
+      `!${srcRoot}/**/*.css`,
       `!${srcRoot}/theme/**`,
     ]);
     looseFiles.name = "looseFiles";
 
-    // We ignored scripts above as they require unique handling
+    // We ignored scripts above as they require unique handling here
     const scripts = srcStreamReadable.src(`${srcRoot}/**/*.js`).pipe(concat('main.js')).pipe(terser()).pipe(sourcemaps.write("/"));
     scripts.name = "scripts";
 
-    // We ignored stylesheets above as they require unique handling
+    // We ignored stylesheets above as they require unique handling here
     const stylesheets = srcStreamReadable
-      .src(`${srcRoot}/stylesheets/**/*.css`)
+      .src(`${srcRoot}/**/*.css`)
       .pipe(sourcemaps.init())
       .pipe(cleanCSS())
+      .pipe(concat("styles.css"))
       .pipe(sourcemaps.write("/"));
     stylesheets.name = "stylesheets";
 
