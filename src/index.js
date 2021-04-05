@@ -30,7 +30,7 @@ class WebProducer {
    * @param {string} configPathOrString:  String of YAML or path to a YAML file containing configuration settings
    * @memberof WebProducer
    */
-  constructor(configPathOrString, TransformModule) {
+  constructor(configPathOrString, TransformModule, globs) {
     this.startTime = new Date();
     console.log(`${new Date().toISOString()}> WebProducer started`);
 
@@ -66,11 +66,22 @@ class WebProducer {
     }
 
     console.log(
-      `${new Date().toISOString()}> Data:        ${
-        this.data.endpoint ? this.data.endpoint.base + "/data" : this.data.path + "/data"
+      `${new Date().toISOString()}> Data:        ${this.data.endpoint ? this.data.endpoint.base + "/data" : this.data.path + "/data"
       }`
     );
     console.log(`${new Date().toISOString()}> Meta:        ${this.data.path + "/data/meta"}`);
+    if (!globs) {
+      this.globs = {
+        styles: {
+          "/styles.min.css": ["/**/*.css"],
+        },
+        scripts: {
+          "/main.min.js": ["/**/*.js"],
+        },
+      }
+    } else {
+      this.globs = globs;
+    }
   }
 
   /**
@@ -189,9 +200,16 @@ class WebProducer {
     ]);
     looseFiles.name = "looseFiles";
 
+
+    const scriptStreams = Object.keys(this.globs.scripts).map(key => {
+      let scriptStream = srcStreamReadable.src(`${srcRoot}${this.globs.scripts[key]}`).pipe(concat(key)).pipe(terser()).pipe(sourcemaps.write("/"));
+      scriptStream.name = key;
+      return scriptStream;
+    })
+
     // We ignored scripts above as they require unique handling here
-    const scripts = srcStreamReadable.src(`${srcRoot}/**/*.js`).pipe(concat('main.js')).pipe(terser()).pipe(sourcemaps.write("/"));
-    scripts.name = "scripts";
+    // const scripts = srcStreamReadable.src(`${srcRoot}/**/*.js`).pipe(concat('main.js')).pipe(terser()).pipe(sourcemaps.write("/"));
+    // scripts.name = "scripts";
 
     // We ignored stylesheets above as they require unique handling here
     const stylesheets = srcStreamReadable
@@ -210,7 +228,7 @@ class WebProducer {
     await destinationFilesParsed;
 
     // Merge all the various input streams into one main stream to be parsed
-    const streams = [looseFiles, scripts, stylesheets, pagesStream, fileStream];
+    const streams = [looseFiles, ...scriptStreams, stylesheets, pagesStream, fileStream];
 
     // MergedStream is new in 0.5.0 and replaces the previous and more complicated Promise-based code block
     const mergedStream = new MergeStream(streams);
@@ -244,8 +262,7 @@ class WebProducer {
     const endTime = new Date();
 
     console.log(
-      `${new Date().toISOString()}> WebProducer built and deployed: ${pages} pages, ${redirects} redirects and ${files} files in ${
-        endTime - this.startTime
+      `${new Date().toISOString()}> WebProducer built and deployed: ${pages} pages, ${redirects} redirects and ${files} files in ${endTime - this.startTime
       }ms.`
     );
   }
