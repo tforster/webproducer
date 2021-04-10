@@ -200,25 +200,20 @@ class WebProducer {
     ]);
     looseFiles.name = "looseFiles";
 
-
+    // We ignored scripts above as they require unique handling here
     const scriptStreams = Object.keys(this.globs.scripts).map(key => {
       let scriptStream = srcStreamReadable.src(`${srcRoot}${this.globs.scripts[key]}`).pipe(concat(key)).pipe(terser()).pipe(sourcemaps.write("/"));
       scriptStream.name = key;
       return scriptStream;
     })
 
-    // We ignored scripts above as they require unique handling here
-    // const scripts = srcStreamReadable.src(`${srcRoot}/**/*.js`).pipe(concat('main.js')).pipe(terser()).pipe(sourcemaps.write("/"));
-    // scripts.name = "scripts";
 
     // We ignored stylesheets above as they require unique handling here
-    const stylesheets = srcStreamReadable
-      .src(`${srcRoot}/**/*.css`)
-      .pipe(sourcemaps.init())
-      .pipe(cleanCSS())
-      .pipe(concat("styles.css"))
-      .pipe(sourcemaps.write("/"));
-    stylesheets.name = "stylesheets";
+    const cssStreams = Object.keys(this.globs.styles).map(key => {
+      let cssStream = srcStreamReadable.src(`${srcRoot}${this.globs.styles[key]}`).pipe(cleanCSS()).pipe(concat(key)).pipe(sourcemaps.write("/"));
+      cssStream.name = key;
+      return cssStream;
+    })
 
     // We ignored the stream of handlebars theme files as they were generated earlier and require additional unique handling here
     const pagesStream = htmlStream.pipe(minifyHtml({ collapseWhitespace: true, removeComments: true }));
@@ -228,7 +223,7 @@ class WebProducer {
     await destinationFilesParsed;
 
     // Merge all the various input streams into one main stream to be parsed
-    const streams = [looseFiles, ...scriptStreams, stylesheets, pagesStream, fileStream];
+    const streams = [looseFiles, ...scriptStreams, ...cssStreams, pagesStream, fileStream];
 
     // MergedStream is new in 0.5.0 and replaces the previous and more complicated Promise-based code block
     const mergedStream = new MergeStream(streams);
