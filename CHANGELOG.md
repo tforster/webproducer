@@ -21,7 +21,6 @@ All released versions are available as [Releases on this repository](https://git
 Features
 
 - [Support JS and CSS file bundling](https://dev.azure.com/techsmarts/TechSmarts/_workitems/edit/334)
-
 Fixes
 
 - [Published env variable logic is flipped](https://dev.azure.com/techsmarts/TechSmarts/_workitems/edit/762)
