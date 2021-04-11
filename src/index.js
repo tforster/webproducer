@@ -3,6 +3,7 @@
 
 // Third party dependencies (Typically found in public NPM packages)
 const cleanCSS = require("gulp-clean-css");
+const concat = require('gulp-concat')
 const minifyHtml = require("gulp-htmlmin");
 const sourcemaps = require("gulp-sourcemaps");
 const terser = require("gulp-terser");
@@ -29,7 +30,7 @@ class WebProducer {
    * @param {string} configPathOrString:  String of YAML or path to a YAML file containing configuration settings
    * @memberof WebProducer
    */
-  constructor(configPathOrString) {
+  constructor(configPathOrString, TransformModule, globs) {
     this.startTime = new Date();
     console.log(`${new Date().toISOString()}> WebProducer started`);
 
@@ -59,12 +60,28 @@ class WebProducer {
 
     // Setup data object describing data and meta sources
     this.data = this._getDataSource(this.config.templates);
+
+    if (TransformModule) {
+      this.data.TransformModule = TransformModule;
+    }
+
     console.log(
-      `${new Date().toISOString()}> Data:        ${
-      this.data.endpoint ? this.data.endpoint.base + "/data" : this.data.path + "/data"
+      `${new Date().toISOString()}> Data:        ${this.data.endpoint ? this.data.endpoint.base + "/data" : this.data.path + "/data"
       }`
     );
     console.log(`${new Date().toISOString()}> Meta:        ${this.data.path + "/data/meta"}`);
+    if (!globs) {
+      this.globs = {
+        styles: {
+          "/styles.min.css": ["/**/*.css"],
+        },
+        scripts: {
+          "/main.min.js": ["/**/*.js"],
+        },
+      }
+    } else {
+      this.globs = globs;
+    }
   }
 
   /**
@@ -125,7 +142,6 @@ class WebProducer {
    * Entry point into WebProducer
    *
    * @param {object} options: Additional options typically passed at runtime to temporarily alter the behaviour of WebProducer
-   *                          - debugTransform: Enable breakpoint debugging in transform.js
    *                          - dataSnapshot:   Save retrieved data to the current data meta path as data.json
    * @memberof WebProducer
    */
@@ -178,23 +194,26 @@ class WebProducer {
     const looseFiles = srcStreamReadable.src([
       `${srcRoot}/**/*.*`,
       `!${srcRoot}/data/**`,
-      `!${srcRoot}/scripts/**`,
-      `!${srcRoot}/stylesheets/**`,
+      `!${srcRoot}/**/*.js`,
+      `!${srcRoot}/**/*.css`,
       `!${srcRoot}/theme/**`,
     ]);
     looseFiles.name = "looseFiles";
 
-    // We ignored scripts above as they require unique handling
-    const scripts = srcStreamReadable.src(`${srcRoot}/scripts/**/*.js`).pipe(terser()).pipe(sourcemaps.write("/"));
-    scripts.name = "scripts";
+    // We ignored scripts above as they require unique handling here
+    const scriptStreams = Object.keys(this.globs.scripts).map(key => {
+      let scriptStream = srcStreamReadable.src(`${srcRoot}${this.globs.scripts[key]}`).pipe(concat(key)).pipe(terser()).pipe(sourcemaps.write("/"));
+      scriptStream.name = key;
+      return scriptStream;
+    })
 
-    // We ignored stylesheets above as they require unique handling
-    const stylesheets = srcStreamReadable
-      .src(`${srcRoot}/stylesheets/**/*.css`)
-      .pipe(sourcemaps.init())
-      .pipe(cleanCSS())
-      .pipe(sourcemaps.write("/"));
-    stylesheets.name = "stylesheets";
+
+    // We ignored stylesheets above as they require unique handling here
+    const cssStreams = Object.keys(this.globs.styles).map(key => {
+      let cssStream = srcStreamReadable.src(`${srcRoot}${this.globs.styles[key]}`).pipe(cleanCSS()).pipe(concat(key)).pipe(sourcemaps.write("/"));
+      cssStream.name = key;
+      return cssStream;
+    })
 
     // We ignored the stream of handlebars theme files as they were generated earlier and require additional unique handling here
     const pagesStream = htmlStream.pipe(minifyHtml({ collapseWhitespace: true, removeComments: true }));
@@ -204,7 +223,7 @@ class WebProducer {
     await destinationFilesParsed;
 
     // Merge all the various input streams into one main stream to be parsed
-    const streams = [looseFiles, scripts, stylesheets, pagesStream, fileStream];
+    const streams = [looseFiles, ...scriptStreams, ...cssStreams, pagesStream, fileStream];
 
     // MergedStream is new in 0.5.0 and replaces the previous and more complicated Promise-based code block
     const mergedStream = new MergeStream(streams);
@@ -221,12 +240,12 @@ class WebProducer {
     });
 
     // We want to invalidate ASAP and the risk of the few extra ms here vs deleting files no longer required is ok
-    if (config.destination.webserver && config.destination.webserver.cloudFrontDistributionId && streamUtils.destinationUpdates) {
+    if (config.destination.cloudFrontDistributionId && streamUtils.destinationUpdates) {
       // CloudFront requires "/" rooted paths, whereas our paths are not "/" rooted elsewhere in this system
       streamUtils.destinationUpdates = streamUtils.destinationUpdates.map((path) => `/${path}`);
 
       const retval = await CloudFront.createInvalidation({
-        distributionId: config.destination.webserver.cloudFrontDistributionId,
+        distributionId: config.destination.cloudFrontDistributionId,
         paths: streamUtils.destinationUpdates,
         region: this.dest.region,
       });
@@ -238,8 +257,7 @@ class WebProducer {
     const endTime = new Date();
 
     console.log(
-      `${new Date().toISOString()}> WebProducer built and deployed: ${pages} pages, ${redirects} redirects and ${files} files in ${
-      endTime - this.startTime
+      `${new Date().toISOString()}> WebProducer built and deployed: ${pages} pages, ${redirects} redirects and ${files} files in ${endTime - this.startTime
       }ms.`
     );
   }

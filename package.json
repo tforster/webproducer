@@ -1,6 +1,6 @@
 {
   "name": "@tforster/webproducer",
-  "version": "0.7.1",
+  "version": "0.9.0",
   "description": "WebProducer, or simply WP, is a serverless application for publishing content to the web. It equally supports websites and web applications with a lean, streams based, architecture.",
   "author": "",
   "license": "MIT",
@@ -29,31 +29,30 @@
   },
   "homepage": "https://github.com/tforster/webproducer#readme",
   "devDependencies": {
-    "eslint": "^6.7.2",
-    "eslint-config-prettier": "^6.7.0",
-    "eslint-plugin-html": "^6.0.0",
-    "eslint-plugin-prettier": "^3.1.2",
-    "prettier": "^2.0.5",
-    "serverless": "^1.71.3",
-    "serverless-dotenv-plugin": "^2.1.1",
-    "serverless-offline": "^5.12.1"
+    "eslint": "^7.19.0",
+    "eslint-config-prettier": "^7.2.0",
+    "eslint-plugin-html": "^6.1.1",
+    "eslint-plugin-prettier": "^3.3.1",
+    "prettier": "^2.2.1",
+    "serverless": "^2.22.0",
+    "serverless-dotenv-plugin": "^3.1.0",
+    "serverless-offline": "^6.8.0"
   },
   "main": "src/index.js",
-  "scripts": {
-    "debug": "node --inspect-brk=9229 ./node_modules/.bin/serverless offline"
-  },
+  "scripts": {},
   "dependencies": {
-    "aws-sdk": "^2.594.0",
-    "gulp-clean-css": "^4.2.0",
+    "aws-sdk": "^2.839.0",
+    "gulp-clean-css": "^4.3.0",
+    "gulp-concat": "^2.6.1",
     "gulp-htmlmin": "^5.0.1",
-    "gulp-sourcemaps": "^2.6.5",
-    "gulp-terser": "^1.2.0",
+    "gulp-sourcemaps": "^3.0.0",
+    "gulp-terser": "^2.0.1",
     "handlebars": "^4.7.6",
-    "jszip": "^3.2.2",
+    "jszip": "^3.5.0",
     "micromatch": "^4.0.2",
-    "mime": "^2.4.6",
-    "node-fetch": "^2.6.0",
-    "vinyl": "^2.2.0",
+    "mime": "^2.5.0",
+    "node-fetch": "^2.6.1",
+    "vinyl": "^2.2.1",
     "vinyl-fs": "^3.0.3",
     "yaml": "^1.10.0"
   }

@@ -8,7 +8,7 @@ const { Writable } = require("stream");
 const vfs = require("vinyl-fs");
 
 // Project dependencies
-const GraphQLDataAdapter = require("@tforster/webproducer/src/GraphQLDataAdapter");
+const GraphQLDataAdapter = require("./GraphQLDataAdapter");
 const Utils = require("./Utils");
 const s3FileAdapter = require("./S3FileAdapter");
 
@@ -32,9 +32,9 @@ class DataSource {
     let data = {};
 
     // Attempt to get any query, transform or data from the path if it was provided.
-    const { query, transform, json } = await DataSource._getMeta(options.path, options.region);
+    const { query, json } = await DataSource._getMeta(options.path, options.region);
 
-    const type = (options.endpoint) ? options.endpoint.type : options.type;
+    const type = options.endpoint ? options.endpoint.type : options.type;
 
     // Fetch the data based on the type of data source
     switch (type) {
@@ -72,7 +72,7 @@ class DataSource {
         break;
 
       case "mongo":
-        throw new Error(`Data source type MongoDb is not implemnted yet.`);
+        throw new Error(`Data source type MongoDb is not implemented yet.`);
         if (!query) {
           throw new Error("A query is required for type GraphQL");
         }
@@ -87,22 +87,19 @@ class DataSource {
       await Utils.saveFile(JSON.stringify(data), "snapshot.json", options.path);
     }
 
-    // Optionally reshape the data if a transform function was provided
-    if (transform) {
-      const module = new Module();
-      module._compile(transform, "transform.js");
-      data = new module.exports(options.debugTransform).transform(data);
+    // Optionally reshape the data if a transform module was provided
+    if (options.TransformModule) {
+      data = new options.TransformModule().transform(data);
     }
 
     // Final check to ensure we have data
     if (data === {}) {
-      throw new Error("Data not found.")
+      throw new Error("Data not found.");
     }
 
     // Return the data to the main() in index.js
     return data;
   }
-
 
   /**
    * Returns any meta files associated with the data source including none, one or all of a query and tnansform function.
@@ -138,7 +135,6 @@ class DataSource {
     return DataSource._getFilesFromStream(stream);
   }
 
-
   /**
    * Gets the contents of the data directory passed in the stream
    *
@@ -172,10 +168,6 @@ class DataSource {
 
           case ".sql":
             metaDataFiles["query"] = file.contents.toString();
-            break;
-
-          case ".js":
-            metaDataFiles["transform"] = file.contents.toString();
             break;
 
           default:
