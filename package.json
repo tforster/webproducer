@@ -47,7 +47,7 @@
     "gulp-htmlmin": "^5.0.1",
     "gulp-sourcemaps": "^3.0.0",
     "gulp-terser": "^2.0.1",
-    "handlebars": "^4.7.6",
+    "handlebars": "^4.7.7",
     "jszip": "^3.5.0",
     "micromatch": "^4.0.2",
     "mime": "^2.5.0",
