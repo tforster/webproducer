@@ -51,7 +51,7 @@
     "jszip": "^3.5.0",
     "micromatch": "^4.0.2",
     "mime": "^2.5.0",
-    "node-fetch": "^2.6.1",
+    "node-fetch": "^3.1.1",
     "vinyl": "^2.2.1",
     "vinyl-fs": "^3.0.3",
     "yaml": "^1.10.0"
