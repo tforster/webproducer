@@ -1,23 +1,37 @@
-# WebProducer
+# WebProducer <!-- omit in toc -->
 
-[![Board Status](https://dev.azure.com/techsmarts/08c518d9-553e-44a6-bd93-33b1b4b46b5c/94878bf3-1784-4a48-9a4a-e692d65425ba/_apis/work/boardbadge/e05cc4cb-70d4-4fcf-be68-9c1a6cb5cf69?columnOptions=1)](https://dev.azure.com/techsmarts/08c518d9-553e-44a6-bd93-33b1b4b46b5c/_boards/board/t/94878bf3-1784-4a48-9a4a-e692d65425ba/Microsoft.RequirementCategory/)
+_Note: New and improved 1.0.0 specific README coming soon._
 
 WebProducer, or simply WP, is a serverless application for publishing content to the web. It equally supports websites and web applications with a lean, streams based, architecture.
 
-The current version is dependent upon the Amazon AWS stack, including IAM, Lambda, S3+CloudFront. Support for other providers including Google and Microsoft is planned for the future.
+## Table of Contents <!-- omit in toc -->
 
-The core of the module is a NodeJS Lambda function. This function is intended to act as the endpoint for a webhook from your preferred CMS. Changing content in the CMS should trigger the webhook which will then
+- [Usage](#usage)
+  - [Installation](#installation)
+  - [Configuration](#configuration)
+  - [CLI](#cli)
+- [Prerequisites](#prerequisites)
+- [Setup and Configuration](#setup-and-configuration)
+- [Usage](#usage-1)
+- [Change Log](#change-log)
+- [Meta](#meta)
+- [Contributing](#contributing)
 
-1. Fetch the full content from the CMS
-2. Fetch the list of existing files and their ETags
-3. Load and register the theme
-4. Merge the content with the theme to produce raw output
-5. Process the raw output to minify all HTML, CSS and JavaScript files
-6. Create a sitemap.xml file
-7. Create any optional RSS files if syndicated content is detected
-8. Compare built files to list fetched in step 2 and build a difference
-9. Stream the difference to the target
-10. If the target is an S3 bucket and a CloudFront id has been specified then CloudFront will be invalidated
+## Usage
+
+### Installation
+
+``` shell
+npm i @tforster/webproducer
+```
+
+### Configuration
+
+### CLI
+
+``` shell
+npx @tforster/webproducer
+```
 
 ## Prerequisites
 
@@ -119,7 +133,7 @@ Troy Forster – @tforster – troy.forster@gmail.com
 
 See LICENSE for more information.
 
-https://github.com/tforster/webproducer
+<https://github.com/tforster/webproducer>
 
 ## Contributing
 

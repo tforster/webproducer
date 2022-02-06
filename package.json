@@ -1,17 +1,33 @@
 {
-  "name": "@tforster/webproducer",
-  "version": "0.9.0",
-  "description": "WebProducer, or simply WP, is a serverless application for publishing content to the web. It equally supports websites and web applications with a lean, streams based, architecture.",
-  "author": "",
-  "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/tforster/webproducer.git"
+  "author": "Troy Forster <troy.forster@gmail.com> (https://www.tforster.com)",
+  "bin": {
+    "webproducer": "scripts/cli/index.js"
   },
-  "files": [
-    "src",
-    "README.md"
-  ],
+  "bugs": {
+    "url": "https://github.com/tforster/webproducer/issues"
+  },
+  "dependencies": {
+    "esbuild": "^0.14.20",
+    "handlebars": "^4.7.7",
+    "html-minifier": "^4.0.0",
+    "vinyl": "^2.2.1"
+  },
+  "description": "WebProducer, or simply WP, is a serverless application for publishing content to the web. It equally supports websites and web applications with a lean, streams based, architecture.",
+  "devDependencies": {
+    "commander": "^9.0.0",
+    "eslint": "^8.8.0",
+    "eslint-config-prettier": "^8.3.0",
+    "eslint-plugin-html": "^6.2.0",
+    "eslint-plugin-prettier": "^4.0.0",
+    "map-stream": "^0.0.7",
+    "prettier": "^2.5.1",
+    "vinyl-fs": "^3.0.3"
+  },
+  "funding": {
+    "type": "patreon",
+    "url": "https://www.patreon.com/tforster"
+  },
+  "homepage": "https://github.com/tforster/webproducer#readme",
   "keywords": [
     "npm",
     "serverless",
@@ -24,36 +40,12 @@
     "web",
     "app"
   ],
-  "bugs": {
-    "url": "https://github.com/tforster/webproducer/issues"
-  },
-  "homepage": "https://github.com/tforster/webproducer#readme",
-  "devDependencies": {
-    "eslint": "^7.19.0",
-    "eslint-config-prettier": "^7.2.0",
-    "eslint-plugin-html": "^6.1.1",
-    "eslint-plugin-prettier": "^3.3.1",
-    "prettier": "^2.2.1",
-    "serverless": "^2.22.0",
-    "serverless-dotenv-plugin": "^3.1.0",
-    "serverless-offline": "^6.8.0"
-  },
+  "license": "MIT",
   "main": "src/index.js",
-  "scripts": {},
-  "dependencies": {
-    "aws-sdk": "^2.839.0",
-    "gulp-clean-css": "^4.3.0",
-    "gulp-concat": "^2.6.1",
-    "gulp-htmlmin": "^5.0.1",
-    "gulp-sourcemaps": "^3.0.0",
-    "gulp-terser": "^2.0.1",
-    "handlebars": "^4.7.6",
-    "jszip": "^3.5.0",
-    "micromatch": "^4.0.2",
-    "mime": "^2.5.0",
-    "node-fetch": "^2.6.1",
-    "vinyl": "^2.2.1",
-    "vinyl-fs": "^3.0.3",
-    "yaml": "^1.10.0"
-  }
+  "name": "@tforster/webproducer",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tforster/webproducer.git"
+  },
+  "version": "1.0.0"
 }
