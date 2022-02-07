@@ -8,7 +8,7 @@ const { Command } = require("commander");
 const vfs = require("vinyl-fs");
 
 // TODO: REmove this after debugging Vinyl pathing issue
-const map = require("map-stream");
+//const map = require("map-stream");
 
 // Project dependencies
 const { description, version, name } = require("../../package.json");
