@@ -13,7 +13,7 @@ const vfs = require("vinyl-fs");
 // Project dependencies
 const { description, version, name } = require("../../package.json");
 const WebProducer = require("../../src");
-const cliTransform = require("../../tests/cliTransform");
+//const cliTransform = require("../../tests/cliTransform");
 
 const program = new Command();
 program.name(name).description(description).version(version);
@@ -44,7 +44,7 @@ const options = { ...program.opts() };
     pages: !options.pages
       ? false
       : {
-          data: { stream: vfs.src([options.data]).pipe(cliTransform) },
+          data: { stream: vfs.src([options.data]) },
           theme: { stream: vfs.src([options.theme]) },
         },
     scripts: !options.scripts ? false : { entryPoints: [options.scripts] },
