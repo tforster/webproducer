@@ -31,7 +31,7 @@ program
   .option("--no-files", "Do not process files")
   .option("--no-pages", "Do not process pages");
 
-program.parse();
+program.parse(process.argv);
 const options = { ...program.opts() };
 
 // var log = function (file, cb) {
