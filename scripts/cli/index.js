@@ -4,28 +4,40 @@
 const start = new Date();
 
 // Third party dependencies
-const { Command } = require("commander");
-const vfs = require("vinyl-fs");
+import { Command } from "commander";
+import { vfs } from "vinyl-fs";
 
 // TODO: REmove this after debugging Vinyl pathing issue
 //const map = require("map-stream");
 
 // Project dependencies
-const { description, version, name } = require("../../package.json");
-const WebProducer = require("../../src");
+//import { description, version, name } = require("../../package.json");
+import { errorHandler } from "./ErrorHandler.js";
+import { WebProducer } from "../../src/index.js";
 //const cliTransform = require("../../tests/cliTransform");
+const description = "Description";
+const version = "1.0.0";
+const name = "webproducer CLI";
+
+process.on("uncaughtException", (error) => {
+  errorHandler.handleError(error);
+  if (!errorHandler.isTrustedError(error)) {
+    process.exit(1);
+  }
+});
 
 const program = new Command();
 program.name(name).description(description).version(version);
 
 program
-  .option("-r, --relative-root <string>", "The relative root of all the source files", "./src")
-  .option("-d, --data <string>", "Path to the JSON data file.", "./src/data/data.json")
-  .option("-t, --theme <string>", "Glob to handlebars files", "./src/theme/**/*.hbs")
-  .option("-s, --scripts <string>", "Comma separated list of ES Module entry points", "./src/scripts/main.js")
-  .option("-c, --css <string>", "Comma separated list of stylesheet entry points", "./src/stylesheets/main.css")
-  .option("-f, --files <string>", "Comma separated list of static file globs", "./src/images/**/*.*")
-  .option("-o, --out <string>", "Output directory", "./dist")
+  .option("-r, --relative-root [root]", "The relative root of all the source files", "./src")
+  .option("-d, --data [data]", "Path to the JSON data file.", "./src/data/data.json")
+  .option("-t, --theme [theme]", "Glob to handlebars files", "./src/theme/**/*.hbs")
+  .option("-s, --scripts [scripts]", "Comma separated list of ES Module entry points", "./src/scripts/main.js")
+  .option("-c, --css [css]", "Comma separated list of stylesheet entry points", "./src/stylesheets/main.css")
+  .option("-f, --files [files]", "Comma separated list of static file globs", "./src/images/**/*.*")
+  .option("-o, --out [out]", "Output directory", "./dist")
+  .option("-x, --autoprefix-css", "Enable autoprefixing of CSS", false)
   .option("--no-scripts", "Do not process scripts")
   .option("--no-css", "Do not process stylesheets")
   .option("--no-files", "Do not process files")
@@ -55,7 +67,7 @@ const options = { ...program.opts() };
 
   try {
     // Create a new instance of WebProducer
-    const webproducer = new WebProducer();
+    const webproducer = new WebProducer(options);
 
     // Add an onClose event handler that is specific to this CLI app (hence why it is not part of WebProducer)
     webproducer.mergeStream.on("finish", () => {

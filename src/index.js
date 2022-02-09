@@ -1,13 +1,14 @@
 "use strict";
 
 // System dependencies
-const { Transform } = require("stream");
+import { Transform } from "stream";
 
 // Project dependencies
-const ScriptsPipeline = require("./ScriptsPipeline");
-const StaticFilesPipeline = require("./StaticFilesPipeline");
-const StylesheetsPipeline = require("./StylesheetsPipeline");
-const TemplatePipeline = require("./TemplatePipeline");
+import ErrorHandler from "./ErrorHandler.js";
+import ScriptsPipeline from "./ScriptsPipeline.js";
+import StaticFilesPipeline from "./StaticFilesPipeline.js";
+import StylesheetsPipeline from "./StylesheetsPipeline.js";
+import TemplatePipeline from "./TemplatePipeline.js";
 
 /**
  * @description: The entry point of the WebProducer engine
@@ -20,7 +21,8 @@ class WebProducer {
    * @date 2022-02-06
    * @memberof WebProducer
    */
-  constructor() {
+  constructor(options) {
+    this.options = options;
     // Set the counters for total files output and accumulated file size to zero
     this.resources = 0;
     this.size = 0;
@@ -41,33 +43,37 @@ class WebProducer {
    * @memberof WebProducer
    */
   async produce(params) {
-    this.mergeStream.on("data", (f) => {
-      // Increment the accumulated file size every time we add a new file to the stream
-      this.size += f.contents.length;
-      // Increment the resource counter every time we add a new file to the stream
-      this.resources++;
-    });
+    try {
+      this.mergeStream.on("data", (f) => {
+        // Increment the accumulated file size every time we add a new file to the stream
+        this.size += f.contents.length;
+        // Increment the resource counter every time we add a new file to the stream
+        this.resources++;
+      });
 
-    const pipelinePromises = [];
+      const pipelinePromises = [];
 
-    if (params?.pages?.data?.stream && params?.pages?.theme?.stream) {
-      pipelinePromises.push(new TemplatePipeline().pipeTo(this.mergeStream, params.pages.data.stream, params.pages.theme.stream));
+      if (params?.pages?.data?.stream && params?.pages?.theme?.stream) {
+        pipelinePromises.push(new TemplatePipeline().pipeTo(this.mergeStream, params.pages.data.stream, params.pages.theme.stream));
+      }
+
+      if (params?.files?.stream) {
+        pipelinePromises.push(new StaticFilesPipeline().pipeTo(this.mergeStream, params.files.stream));
+      }
+
+      if (params?.scripts?.entryPoints) {
+        pipelinePromises.push(new ScriptsPipeline().pipeTo(this.mergeStream, params.scripts.entryPoints));
+      }
+
+      if (params?.stylesheets?.entryPoints) {
+        pipelinePromises.push(new StylesheetsPipeline(this.options).pipeTo(this.mergeStream, params.stylesheets.entryPoints));
+      }
+
+      await Promise.all(pipelinePromises);
+      this.mergeStream.end();
+    } catch (err) {
+      errorHandler.handleError(err);
     }
-
-    if (params?.files?.stream) {
-      pipelinePromises.push(new StaticFilesPipeline().pipeTo(this.mergeStream, params.files.stream));
-    }
-
-    if (params?.scripts?.entryPoints) {
-      pipelinePromises.push(new ScriptsPipeline().pipeTo(this.mergeStream, params.scripts.entryPoints));
-    }
-
-    if (params?.stylesheets?.entryPoints) {
-      pipelinePromises.push(new StylesheetsPipeline().pipeTo(this.mergeStream, params.stylesheets.entryPoints));
-    }
-
-    await Promise.all(pipelinePromises);
-    this.mergeStream.end();
   }
 }
 

@@ -4,7 +4,7 @@
 const { Transform } = require("stream");
 
 // Project dependencies
-const Utils = require("./Utils");
+const Utils = require("./Utils.js");
 
 /**
  * @description: Simple pipeline that pipes the incoming stream directly to the merge stream with no transformations.

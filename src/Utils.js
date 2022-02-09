@@ -38,4 +38,5 @@ class Utils {
   }
 }
 
-module.exports = Utils;
+export const vinyl = Utils.vinyl;
+export const streamsFinish = Utils.streamsFinish;
