@@ -1,140 +1,180 @@
 # WebProducer <!-- omit in toc -->
 
-_Note: New and improved 1.0.0 specific README coming soon._
-
-WebProducer, or simply WP, is a serverless application for publishing content to the web. It equally supports websites and web applications with a lean, streams based, architecture.
+WebProducer is a data-driven tool for highly performant production of websites and web applications.
 
 ## Table of Contents <!-- omit in toc -->
 
+- [About](#about)
+- [Try It Out](#try-it-out)
 - [Usage](#usage)
   - [Installation](#installation)
-  - [Configuration](#configuration)
-  - [CLI](#cli)
-- [Prerequisites](#prerequisites)
-- [Setup and Configuration](#setup-and-configuration)
-- [Usage](#usage-1)
+  - [Operation](#operation)
+    - [Path Overrides](#path-overrides)
+    - [Additional CSS Options](#additional-css-options)
+    - [Disable Pipelines](#disable-pipelines)
+    - [Housekeeping Options](#housekeeping-options)
+- [API](#api)
 - [Change Log](#change-log)
-- [Meta](#meta)
+- [Code of Conduct](#code-of-conduct)
 - [Contributing](#contributing)
+- [Meta](#meta)
+
+## About
+
+While WebProducer could be thought of as static site generator it differs in that it is:
+
+- **Data-driven**: Whereas most static site generators process a tree of page-centric markdown files in the filesystem, WebProducer takes a stream of data and generates content by merging it with in-memory "component" templates. This approach allows WebProducer to be extremely fast and efficient for building content with complex IA needs.
+- **Streams based**: It makes heavy use of readable, writeable and transformation streams allowing for large volumes of content to be processed at high speed with minimal memory requirements. This also makes WebProducer ideal for serverless deployments using AWS Lambda or Azure Cloud Functions.
+  
+  Since WebProducer consumes and produces streams its behaviour can be easily adapted by transforming the inbound data with a pipe and transforming the outbound data with a pipe. For instance, data could be streamed from a REST API call to a transformation function that restructures the data schema before piping on to WebProducer.
+- **Decoupled architecture**: The core of WebProducer is implemented as a reusable NPM module. Since it only accepts and returns streams it can be leveraged for uses cases including:
+  - Local web development: It can build a 200+ page site with minified HTML, bundled and minified ES modules, and bundled and minified CSS in well under a second in a moderate workstation
+  - Serverless web publishing: Triggered by a webhook from a headless CMS a WebProducer serverless function can query a data endpoint (REST, GraphQL, etc), rebuild and redeploy pages to a production server in about a second.
+- **Lean and Lightweight**: Requiring just 6 dependencies WebProducer ... tbd
+
+For a detailed technical explanation please see the [Developer Guide](../webproducer/docs/developer-guide.md).
+
+## Try It Out
+
+1. Clone this repo `git clone git@github.com:tforster/webproducer.git`
+2. CD into the project: `cd webproducer`
+3. Install dependencies: `npm i`
+4. CD into the examples/sample-site directory: `cd examples/getting-started`
+5. Run the CLI: `npx webproducer`
+6. Review the output in examples/getting-started/dist
 
 ## Usage
 
 ### Installation
 
-``` shell
-npm i @tforster/webproducer
-```
-
-### Configuration
-
-### CLI
+Technically the WebProducer CLI requires no installation as it can be run using npx. However, installing it as a developer dependency will reduce the loading latency.
 
 ``` shell
-npx @tforster/webproducer
+npm install @tforster/webproducer --save-dev
 ```
 
-## Prerequisites
+### Operation
 
-The versions listed for these prerequisites are current at the time of writing. More recent versions will likely work but "your mileage may vary".
+``` shell
+npx webproducer [options]
+```
 
-- A good code editor.
-- Node.js v12.13.0&dagger; and NPM 6.14.5
-- Git 2.25
+While WebProducer can run nicely out-of-the-box against an appropriately structured source tree it also has lots of configuration options for fine tuning. These can be viewed anytime by typing `npx webproducer -h` which produces the following:
 
-&dagger; WebProducer is often used in AWS Lambda FaaS. The current hightest Node runtime version supported by AWS is v12.
+``` shell
+  -V, --version               output the version number
+  -r, --relative-root [root]  The relative root of all the source files (default: "./src")
+  -d, --data [data]           Path to the JSON data file. (default: "./src/data/data.json")
+  -t, --theme [theme]         Glob to handlebars files (default: "./src/theme/**/*.hbs")
+  -s, --scripts [scripts]     Comma separated list of ES Module entry points (default: "./src/scripts/main.js")
+  -c, --css [css]             Comma separated list of stylesheet entry points (default: "./src/stylesheets/main.css")
+  -f, --files [files]         Comma separated list of static file globs (default: "./src/images/**/*.*")
+  -o, --out [out]             Output directory (default: "./dist")
+  -x, --prefix-css            Enable autoprefixing of CSS (default: false)
+  --no-scripts                Do not process scripts
+  --no-css                    Do not process stylesheets
+  --no-files                  Do not process files
+  --no-pages                  Do not process pages
+  -h, --help                  display help for command
+```
 
-## Setup and Configuration
+#### Path Overrides
 
-Clone this repository as your new project `git clone git@github.com:tforster/webproducer.git ~/dev/`
+While WebProducer provides defaults for all paths that follow the Joy naming structure developers are free to override as required to suit their particular directory conventions.
 
-## Usage
+- **-r, --relative-root**: The relative root of all the source files (default: "./src")
+- **-d, --data**: Path to the JSON data file. (default: "./src/data/data.json")
+- **-t, --theme**: Glob to handlebars files (default: "./src/theme/**/*.hbs")
+- **-s, --scripts**: Comma separated list of ES Module entry points -(default: "./src/scripts/main.js")
+- **-c, --css**: Comma separated list of stylesheet entry points -(default: "./src/stylesheets/main.css")
+- **-f, --files**: Comma separated list of static file globs (default: "./src/images/**/*.*")
+- **-o, --out**: Output directory (default: "./dist")
 
-1. Install using your preferred package manager. E.g. `npm i -S git+ssh://git@github.com/tforster/webproducer.git#semver:v0.7.1`
-1. Create webproducer.yml. The following example shows multiple formats for data, templates and destination by way of aliases introduced in 0.6.0.
+#### Additional CSS Options
 
-   ```yml
-   data: ${env:DATA_ALIAS} # Uses an environment variable to specify an alias
-   templates: template-fs # Points to an alias
-   destination: # References the destination object directly
-     type: filesystem
-     base: ./dist
-     archive: false # default
+- **-x, --prefix-css**: Enable vendor prefixes of CSS (default: false). If newer and/or experimental CSS features are used then enabling CSS prefixing with `--prefix-css` will use the data based on current browser popularity and property support to apply prefixes.
 
-   ####################
-   # Template Aliases #
-   ####################
+  _Note: This is accomplished with [PostCSS's](https://postcss.org/) [Autoprefixer](https://github.com/postcss/autoprefixer) which calls out to the [Can I Use](https://caniuse.com/) website. The extra overhead does increase WebProducer execution time so you may wish to defer this until you are building a release version._
 
-   template-fs:
-     type: filesystem
-     base: ./src
+#### Disable Pipelines
 
-   template-s3:
-     type: s3
-     base: s3://wp.somedomain.com/${env:STAGE}
-     region: ca-central-1
+While WebProducer is already very fast, the various `--no-*` switches can be used to disable specific pipelines for even more speed. For instance, you may be focusing on template development and not actively editing JS and CSS. In which case adding `--no-scripts --no-css` would disable those pipelines, leaving the last state of generated script and CSS in place in the out directory.
 
-   #######################
-   # Destination Aliases #
-   #######################
+- **--no-scripts**: Disables the scripts pipeline. No scripts will be parsed or written to the output stream.
+- **--no-css**: Disables the stylesheets pipeline. No stylesheets will be parsed or written to the output stream.
+- **--no-files**: Disables the static files pipeline that copies assets from source. No static files will be parsed or written to the output stream.
+- **--no-pages**: Disables the templates pipeline. No template driven files will be parsed or written to the output stream.
 
-   destination-fs:
-     type: filesystem
-     base: ./dist
-     archive: false # default
+#### Housekeeping Options
 
-   destination-s3:
-     type: s3
-     base: s3://www.somedomain.com
-     region: ca-central-1
-     archive: false # default
+A couple of options to help get the most out of WebProducer.
 
-   ################
-   # Data Aliases #
-   ################
+- **-h, --help**: Get a summary of all available options at any time
+- **-V, --version**: Output the current version of the WebProducer CLI
+  
+## API
 
-   data-gql:
-     type: graphql
-     base: https://graphql.datocms.com/
-     token: ${env:GRAPHQL_API_TOKEN}
-     published: ${env:PUBLISHED}
+WebProducer's simple streams API is easy to incorporate into other applications and custom scripts as the following pseudo-code illustrates.
 
-   data-get-request: # REST not implemented. Future consideration only.
-     type: get
-     base: https://some-endpoint.com/this/that
+``` javascript
+// Create a writeable stream for output
+const outStream = new SomeFancyS3BucketStreamUtility();
 
-   data-sql: # SQL not implemented. Future consideration only.
-     type: sql
-     base: Server=myServerName\myInstanceName;Database=myDataBase;User Id=${env:DB_USERNAME};Password=${env:DB_PASSWORD};
+// Create a hash of parameters
+const params = {
+  pages: {
+    data: { stream: "A readable stream from GraphQL query" },
+    theme: { stream: "An array of readable streams resolving to handlebars files" },
+  },
+  scripts: { entryPoints: "An array of script names that serve as entry points" },
+  stylesheets: { entryPoints: "An array of stylesheet names that serve as entry points" },
+  files: { 
+    stream: "An array of readable streams resolving to static files"), 
+    relativeRoot: "A string indicating the base path" 
+  },
+  out: "The directory to write to in the output stream",
+};
 
-   data-mongodb: # Mongo not implemented. Future consideration only.
-     type: mongo
-     base: mongodb://mongodb0.example.com:27017
-   ```
+// Set some options
+const options = {
+  prefix-css: true,
+  noFiles: false,
+  noPages: true,
+}
 
-1. Create .env file using the following schema. Note that most of the parameters are not secrets and could easily be stored in webproducer.yml, however, we have found that externalising to the .env file makes it easier to toggle between template and destination locations during development of a consuming app.
+// Create a new instance of WebProducer
+const webproducer = new WebProducer(options);
 
-   ```bash
-   ALIAS_DATA=data-gql               # Alias the data source
-   ALIAS_TEMPLATES=template-s3       # Alias the template source
-   ALIAS_DESTINATION=destination-s3  # Alias the destination source
-   GRAPHQL_API_TOKEN=***             # Only needed if you are using GraphQL and on a private endpoint
-   STAGE=stage                       # One of dev, stage or prod
-   PUBLISHED=true                    # Typically only required for GraphQL to distinguish between draft and published content
-   CLOUDFRONT_ID=                    # The production CloudFront distribution to invalidate on deploy. Leave blank for dev and stage
-   ```
+// Handle the finish event to write some fancy output (optional)
+webproducer.mergeStream.on("finish", () => {
+  console.log(`Produced ${webproducer.resources} files.`);
+});
+
+// Start producing
+webproducer.produce(params);
+
+// Start piping the produced files to S3 
+webproducer.mergeStream.pipe(outStream);
+```
+
+For real examples see [examples/README.md](./examples/README.md) or consult the [Developer Guide](/docs/developer-guide.md) for more information.
 
 ## Change Log
 
-See CHANGELOG.md
+See [CHANGELOG.md](./CHANGELOG.md) for more information.
+
+## Code of Conduct
+
+See [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md) for more information.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for more information.
 
 ## Meta
 
 Troy Forster – @tforster – troy.forster@gmail.com
 
-See LICENSE for more information.
+See [LICENSE](./LICENSE.txt) for more information.
 
 <https://github.com/tforster/webproducer>
-
-## Contributing
-
-See CONTRIBUTING.md

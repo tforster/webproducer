@@ -4,9 +4,15 @@ Are you interested in using WebProducer in your own project? Then take a look at
 
 ## Table of Contents <!-- omit in toc -->
 
+- [Getting Started](#getting-started)
 - [Local Developer Tool](#local-developer-tool)
 - [Serverless Web Publisher to S3/CloudFront](#serverless-web-publisher-to-s3cloudfront)
 - [GitHub Repo as Template Source](#github-repo-as-template-source)
+- [Web Components](#web-components)
+
+## Getting Started
+
+This directory contains the sample site used in the [Try It Out](../../webproducer/README.md#try-it-out) section of [README.md](../../webproducer/README.md).
 
 ## Local Developer Tool
 
@@ -19,3 +25,7 @@ In this example WebProducer is deployed as an AWS Lambda function and triggered 
 ## GitHub Repo as Template Source
 
 This example shows how WebProducer can be used to generate a PWA using templates found in a GitHub repository.
+
+## Web Components
+
+See how even a complex design system can be implemented with WebProducer.
