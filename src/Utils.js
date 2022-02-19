@@ -1,5 +1,5 @@
 // Third party dependencies
-const Vinyl = require("vinyl");
+import Vinyl from "vinyl";
 
 class Utils {
   /**

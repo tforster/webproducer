@@ -2,69 +2,68 @@
 
 // Third party dependencies
 
-const esbuild = require("esbuild");
+import { build } from "esbuild";
+import autoprefixer from "autoprefixer";
+import postcss from "postcss";
 
 // Project dependencies
-const Utils = require("./Utils.js");
+import { vinyl } from "./Utils.js";
 
 class StylesheetsPipeline {
+  /**
+   * Creates an instance of TemplatePipeline.
+   * @date 2022-02-11
+   * @param {object} options: Hash of runtime options
+   * @memberof TemplatePipeline
+   */
   constructor(options) {
     this.options = options;
   }
+
   async pipeTo(mergeStream, entryPoints) {
-    try {
-      esbuild
-        .build({
-          entryPoints,
-          outdir: "/",
-          bundle: true,
-          sourcemap: true,
-          target: ["es2020"],
-          format: "iife",
-          minify: true,
-          write: false,
-          metafile: true,
-          treeShaking: true,
-          loader: { ".eot": "file", ".ttf": "file", ".woff": "file", ".svg": "file" },
-        })
-        .then(async (result) => {
-          for (const out of result.outputFiles) {
-            const path = out.path;
-            //const contents = Buffer.from(await this.autoPrefix(out.contents));
-            let contents;
-            // Optionally prefix the css
+    // TODO: Remove non-CSS build() options
+    build({
+      entryPoints,
+      outdir: "/",
+      bundle: true,
+      sourcemap: true,
+      target: ["es2020"],
+      format: "iife",
+      minify: true,
+      write: false,
+      metafile: true,
+      treeShaking: true,
+      loader: { ".eot": "file", ".ttf": "file", ".woff": "file", ".svg": "file" },
+    }).then(async (result) => {
+      for (const out of result.outputFiles) {
+        const path = out.path;
+        let contents;
 
-            if (path.endsWith(".css") && this.options.autoprefixCss) {
-              contents = Buffer.from(await this.autoPrefix(out.text));
-            } else {
-              contents = Buffer.from(out.contents);
-            }
+        if (path.endsWith(".css") && this.options.autoprefixCss) {
+          // Optionally prefix the css
+          contents = Buffer.from(await this.autoPrefix(out.text));
+        } else {
+          contents = Buffer.from(out.contents);
+        }
 
-            const v = Utils.vinyl({
-              path,
-              contents,
-            });
-            mergeStream.push(v);
-          }
-
-          //const text = await esbuild.analyzeMetafile(result.metafile, { verbose: true });
-          return Promise.resolve("stylesheets done");
+        const v = vinyl({
+          path,
+          contents,
         });
-      //console.log(text);
-    } catch (err) {
-      //console.error(err);
-    }
+        mergeStream.push(v);
+      }
+
+      return Promise.resolve("stylesheets done");
+    });
   }
 
   autoPrefix(css) {
     // Only require if we choose to enable auto prefixing
-    const autoprefixer = require("autoprefixer");
-    const postcss = require("postcss");
-
     return postcss([autoprefixer])
       .process(css)
       .then((result) => {
         result.warnings().forEach((warn) => {
+          // TODO: Tuck this behind a flag so that the developer has to specify if they want visible warnings in their output.
           console.warn(warn.toString());
         });
         return result.css;
@@ -72,4 +71,4 @@ class StylesheetsPipeline {
   }
 }
 
-module.exports = StylesheetsPipeline;
+export default StylesheetsPipeline;

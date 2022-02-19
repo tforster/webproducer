@@ -1,14 +1,24 @@
 "use strict";
 
 // System dependencies
-const { Writable } = require("stream");
+import { Writable } from "stream";
 
 // Third party dependencies
-const handlebars = require("handlebars");
-const htmlMinify = require("html-minifier").minify;
-const Utils = require("./Utils");
+import handlebars from "handlebars";
+import { minify as htmlMinify } from "html-minifier";
+import { streamsFinish, vinyl } from "./Utils.js";
 
 class TemplatePipeline {
+  /**
+   * Creates an instance of TemplatePipeline.
+   * @date 2022-02-11
+   * @param {object} options: Hash of runtime options
+   * @memberof TemplatePipeline
+   */
+  constructor(options) {
+    this.options = options;
+  }
+
   /**
    * @description: Implements the pipeTo method all our pipelines need to provide
    * @date 2022-02-05
@@ -45,7 +55,7 @@ class TemplatePipeline {
           const generatedContents = template(page);
 
           // Create a new Vinyl object from the generated data
-          vinylFile = Utils.vinyl({
+          vinylFile = vinyl({
             path,
             contents: Buffer.from(generatedContents),
           });
@@ -58,7 +68,7 @@ class TemplatePipeline {
           }
         } else if (page.modelName === "redirect") {
           // Redirects are pseudo-virtual text files that are not created via a handlebars template
-          vinylFile = Utils.vinyl({
+          vinylFile = vinyl({
             path,
             contents: Buffer.from(path),
             redirect: 301,
@@ -94,7 +104,7 @@ class TemplatePipeline {
     const themeStreamW = new Writable({
       objectMode: true,
       write: (file, _, done) => {
-        // Compile the theme file into the handlebars.templates array
+        // Compile the theme file into the handlebars.templates hash
         templates[file.basename] = handlebars.compile(file.contents.toString());
         done();
       },
@@ -118,10 +128,10 @@ class TemplatePipeline {
     themeStreamR.pipe(themeStreamW);
 
     // Allow all the streams to finish processing before returning
-    await Utils.streamsFinish([dataStreamW, themeStreamW]);
+    await streamsFinish([dataStreamW, themeStreamW]);
 
     return { data, templates };
   }
 }
 
-module.exports = TemplatePipeline;
+export default TemplatePipeline;

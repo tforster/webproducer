@@ -1,7 +1,4 @@
 {
-  // Use IntelliSense to learn about possible attributes.
-  // Hover to view descriptions of existing attributes.
-  // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
   "version": "0.2.0",
   "configurations": [
     {
@@ -13,7 +10,11 @@
       ],
       "cwd": "/home/tforster/dev/GregHunter/SpaceStation23/www.spacestation23.com/",
       "program": "${workspaceFolder}/scripts/cli/index.js",
-      "runtimeVersion": "14"
+      "runtimeVersion": "14",
+      "args": [
+        "--transform",
+        "cliTransform.js"
+      ]
     },
     {
       "type": "pwa-node",
@@ -25,14 +26,8 @@
       "program": "${workspaceFolder}/src/index.js",
       "runtimeVersion": "14",
       "args": [
-        "--src",
-        "/path/to/src",
-        "--dest",
-        "/path/to/dest",
-        "--data",
-        "/path/to/data",
         "--transform",
-        "function(){//some func}"
+        "cliTransform.js"
       ]
     },
     {

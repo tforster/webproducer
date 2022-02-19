@@ -7,6 +7,16 @@ import { build } from "esbuild";
 import { vinyl } from "./Utils.js";
 
 class ScriptsPipeline {
+  /**
+   * Creates an instance of TemplatePipeline.
+   * @date 2022-02-11
+   * @param {object} options: Hash of runtime options
+   * @memberof TemplatePipeline
+   */
+  constructor(options) {
+    this.options = options;
+  }
+
   async pipeTo(mergeStream, entryPoints) {
     try {
       build({
@@ -44,4 +54,4 @@ class ScriptsPipeline {
   }
 }
 
-module.exports = ScriptsPipeline;
+export default ScriptsPipeline;

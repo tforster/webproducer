@@ -8,21 +8,20 @@
   },
   "dependencies": {
     "autoprefixer": "^10.4.2",
-    "esbuild": "^0.14.20",
+    "esbuild": "^0.14.23",
     "handlebars": "^4.7.7",
     "html-minifier": "^4.0.0",
     "vinyl": "^2.2.1",
-    "vinyl-fs": "^3.0.3"
+    "vinyl-fs": "^3.0.3",
+    "commander": "^9.0.0"
   },
   "description": "WebProducer, or simply WP, is a serverless application for publishing content to the web. It equally supports websites and web applications with a lean, streams based, architecture.",
   "devDependencies": {
-    "commander": "^9.0.0",
-    "eslint": "^8.8.0",
-    "eslint-config-prettier": "^8.3.0",
+    "eslint": "^8.9.0",
+    "eslint-config-prettier": "^8.4.0",
     "eslint-plugin-html": "^6.2.0",
     "eslint-plugin-import": "^2.25.4",
     "eslint-plugin-prettier": "^4.0.0",
-    "map-stream": "^0.0.7",
     "prettier": "^2.5.1"
   },
   "funding": {
@@ -50,5 +49,16 @@
     "url": "git+https://github.com/tforster/webproducer.git"
   },
   "type": "module",
-  "version": "1.0.0"
+  "version": "1.0.0",
+  "files": [
+    "/src",
+    "/scripts"
+  ],
+  "directories": {
+    "doc": "docs",
+    "example": "examples"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  }
 }

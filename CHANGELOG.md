@@ -25,7 +25,7 @@ _A detailed history of project versions and associated release notes._
 
 This release represents a complete overhaul and ground-up re-architecture of WebProducer with performance and reusability in mind.
 
-The WebProducer core is much leaner (just four dependencies) expecting (mostly) ReadableStreams for input and providing a single WritableStream as output. This makes it trivial to add WebProducer as a dependency to another project. To demonstrate this, a CLI utility aimed at developers is provided that can be run by simply typing `npx @tforster/webproducer` in the root of web project.
+The WebProducer core is much leaner (just 6 dependencies) expecting (mostly) readable streams for input and providing a single writeable stream as output. This makes it trivial to add WebProducer as a dependency to another project. To demonstrate this, a CLI utility aimed at developers is provided that can be run by simply typing `npx @tforster/webproducer` in the root of web project.
 
 In superficial testing on an 8th Gen i7 (Dell XPS-13) the CLI was able to generate a complete website with a dozen pages, numerous images, bundle and tree-shake ES modules, bundle CSS and minify everything including the HTML in ~400 ms. The total output was 147 files totalling 15 Mb.
 

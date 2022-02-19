@@ -1,10 +1,7 @@
 "use strict";
 
-// System dependencies
-const { Transform } = require("stream");
-
 // Project dependencies
-const Utils = require("./Utils.js");
+import { vinyl } from "./Utils.js";
 
 /**
  * @description: Simple pipeline that pipes the incoming stream directly to the merge stream with no transformations.
@@ -12,6 +9,16 @@ const Utils = require("./Utils.js");
  * @class StaticFilesPipeline
  */
 class StaticFilesPipeline {
+  /**
+   * Creates an instance of TemplatePipeline.
+   * @date 2022-02-11
+   * @param {object} options: Hash of runtime options
+   * @memberof TemplatePipeline
+   */
+  constructor(options) {
+    this.options = options;
+  }
+
   /**
    * @description: Implements the pipeTo method all our pipelines need to provide
    * @date 2022-02-05
@@ -29,9 +36,8 @@ class StaticFilesPipeline {
 
       // Inject a fresh new Vinyl file with the correct path into the mergeStream
       staticFilesStreamR.on("data", (f) => {
-        const v = Utils.vinyl({
-          // TODO: images is a testing placeholder and needs to be dynamic, taking into account the unknown of future glob patterns.
-          path: `/images/${f.relative}`,
+        const v = vinyl({
+          path: `/${f.relative}`,
           contents: f.contents,
         });
         mergeStream.push(v);
@@ -40,4 +46,4 @@ class StaticFilesPipeline {
   }
 }
 
-module.exports = StaticFilesPipeline;
+export default StaticFilesPipeline;

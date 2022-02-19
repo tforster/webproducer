@@ -13,6 +13,7 @@ WebProducer is a data-driven tool for highly performant production of websites a
     - [Additional CSS Options](#additional-css-options)
     - [Disable Pipelines](#disable-pipelines)
     - [Housekeeping Options](#housekeeping-options)
+  - [Default Directory Structure](#default-directory-structure)
 - [API](#api)
 - [Change Log](#change-log)
 - [Code of Conduct](#code-of-conduct)
@@ -30,7 +31,8 @@ While WebProducer could be thought of as static site generator it differs in tha
 - **Decoupled architecture**: The core of WebProducer is implemented as a reusable NPM module. Since it only accepts and returns streams it can be leveraged for uses cases including:
   - Local web development: It can build a 200+ page site with minified HTML, bundled and minified ES modules, and bundled and minified CSS in well under a second in a moderate workstation
   - Serverless web publishing: Triggered by a webhook from a headless CMS a WebProducer serverless function can query a data endpoint (REST, GraphQL, etc), rebuild and redeploy pages to a production server in about a second.
-- **Lean and Lightweight**: Requiring just 6 dependencies WebProducer ... tbd
+- **Lean and Lightweight**: Requiring just 6 dependencies WebProducer's at-rest and in-memory footprint is very small.
+- **Uses Handlebars Templates**: Although Handlebars has been around for a long time it is still significantly faster than &lt;insert bloaty framework du jour here>. And, the Handlebars token replacement syntax means it can be used to generate files of many types including HTML, CSS, JS, text, XML, etc. This makes it easy to generate all files in a website including robots.txt, sitemap.xml, manifest.json, etc.
 
 For a detailed technical explanation please see the [Developer Guide](../webproducer/docs/developer-guide.md).
 
@@ -59,7 +61,7 @@ npm install @tforster/webproducer --save-dev
 npx webproducer [options]
 ```
 
-While WebProducer can run nicely out-of-the-box against an appropriately structured source tree it also has lots of configuration options for fine tuning. These can be viewed anytime by typing `npx webproducer -h` which produces the following:
+While WebProducer can run nicely out-of-the-box against an appropriately [structured source tree](#default-directory-structure) it also has lots of configuration options for fine tuning. These can be viewed anytime by typing `npx webproducer -h` which produces the following:
 
 ``` shell
   -V, --version               output the version number
@@ -111,7 +113,24 @@ A couple of options to help get the most out of WebProducer.
 
 - **-h, --help**: Get a summary of all available options at any time
 - **-V, --version**: Output the current version of the WebProducer CLI
-  
+
+### Default Directory Structure
+
+While WebProducer expects source files to be found in the following tree structure by default, they can all be overridden to suit your own structure using the various CLI flags.
+
+``` shell
+. (your project root)
+└── src
+    ├── data
+    ├── fonts
+    ├── images
+    ├── scripts
+    ├── stylesheets
+    └── theme
+        ├── common
+        └── templates
+```
+
 ## API
 
 WebProducer's simple streams API is easy to incorporate into other applications and custom scripts as the following pseudo-code illustrates.
