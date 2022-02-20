@@ -32,13 +32,19 @@ class TemplatePipeline {
     const { data, templates } = await this.parseFiles(dataStreamR, themeStreamR);
 
     return new Promise((resolve) => {
+      if (!data.pages) {
+        // No data? No point in trying to create content so immediately resolve().
+        console.warn("Unexpected condition: Data not found.");
+        resolve("TemplatePipeline: Empty data.");
+      }
+
       handlebars.partials = templates;
 
       // Iterate the pages sub object of data
       for (const [key, page] of Object.entries(data.pages)) {
         // Check that we have a page and modelName otherwise gracefully exit this specific iteration
         if (!(page && page.modelName)) {
-          console.warn("Unexpected condition: page and/or modelName not found.");
+          console.warn("Unexpected condition: Page and/or modelName not found.");
           continue;
         }
 
@@ -84,7 +90,7 @@ class TemplatePipeline {
       }
 
       // Tell index.js that templates have finished processing
-      resolve("templates");
+      resolve("TemplatePipeline: Complete");
     });
   }
 
@@ -118,7 +124,23 @@ class TemplatePipeline {
       objectMode: true,
       write: (file, _, done) => {
         // TODO: Improve handling in case we get non JSON data for some reason
-        data = JSON.parse(file.contents.toString());
+        let rawData = "";
+
+        if (file.contents) {
+          // A Vinyl file object will have a .contents property
+          rawData = file.contents.toString();
+        } else {
+          // A non Vinyl file, e.g. result of a fetch() response, should be a vanilla buffer
+          rawData = file.toString();
+        }
+
+        try {
+          data = JSON.parse(rawData);
+        } catch (err) {
+          console.warn("Unexpected condition: Valid JSON not found.\n", rawData);
+          data = {};
+        }
+
         done();
       },
     });

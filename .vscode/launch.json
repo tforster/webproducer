@@ -19,6 +19,21 @@
     {
       "type": "pwa-node",
       "request": "launch",
+      "name": "use-remote-rest-api-to-create-xml-files-on-s3",
+      "skipFiles": [
+        "<node_internals>/**"
+      ],
+      "cwd": "${workspaceFolder}/examples/use-remote-rest-api-to-create-xml-files-on-s3",
+      "program": "${workspaceFolder}/examples/use-remote-rest-api-to-create-xml-files-on-s3/index.js",
+      "runtimeVersion": "14",
+      "args": [
+        "--transform",
+        "cliTransform.js"
+      ]
+    },
+    {
+      "type": "pwa-node",
+      "request": "launch",
       "name": "CLI",
       "skipFiles": [
         "<node_internals>/**"

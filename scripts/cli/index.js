@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-// Cache the start time as early as possible for best accuracy
+// Cache the start time as early as possible for best accuracy in elapsed time reporting.
 const start = new Date();
 
 // System dependencies
@@ -59,7 +59,6 @@ let customPipelines = 0;
     scripts: !options.scripts ? false : { entryPoints: options.scripts.split(",") },
     stylesheets: !options.css ? false : { entryPoints: options.css.split(",") },
     files: !options.files ? false : { stream: vfs.src(options.files.split(",")), relativeRoot: options.relativeRoot },
-    out: options.out,
   };
 
   try {
@@ -76,8 +75,11 @@ let customPipelines = 0;
     // Create a new instance of WebProducer
     const webproducer = new WebProducer(options);
 
-    // Add an onClose event handler that is specific to this CLI app (hence why it is not part of WebProducer)
-    webproducer.mergeStream.on("finish", () => {
+    // Initialise the destination
+    const dest = vfs.dest(options.out);
+
+    // Add an event handler to write some useful information to the console when everything is complete
+    dest.on("end", () => {
       console.log(
         `Processed ${webproducer.resources} resources totalling ${(webproducer.size / (1024 * 1024)).toFixed(2)} Mb through ${
           webproducer.pipelinePromises.length + customPipelines
@@ -88,8 +90,8 @@ let customPipelines = 0;
     // Start producing
     webproducer.produce(params);
 
-    // Pipe the produced files to a destination folder on the local filesystem
-    webproducer.mergeStream.pipe(vfs.dest(params.out));
+    // Pipe the produced files to the destination
+    webproducer.mergeStream.pipe(dest);
   } catch (err) {
     console.error("WebProducer CLI error", err);
   }

@@ -22,9 +22,14 @@ This example shows how WebProducer can be used to generate a PWA using templates
 
 This is a simplified version of the WebProducer CLI that illustrates how WebProducer can be leveraged in a custom build script.
 
+
 ## Serverless Web Publisher to S3/CloudFront
 
-In this example WebProducer is deployed as an AWS Lambda function and triggered by a webhook from a headless CMS. The built artefacts are streamed to an S3 bucket behind CloudFront and then the CloudFront cache is invalidated.
+In this example WebProducer is deployed as an AWS Lambda function and triggered by a webhook from a headless CMS. The built artefacts are streamed to an S3 bucket behind CloudFront and then the CloudFront cache is invalidated. [Read more...](./serverless-web-publisher-to-s3-cloudfront/README.md)
+
+## Use Remote REST API to Create XML files on S3
+
+See how to fetch data from a remote REST API, combine with local templates to produce XML files and stream to AWS S3.
 
 ## Web Components
 

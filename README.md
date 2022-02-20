@@ -61,7 +61,7 @@ npm install @tforster/webproducer --save-dev
 npx webproducer [options]
 ```
 
-While WebProducer can run nicely out-of-the-box against an appropriately [structured source tree](#default-directory-structure) it also has lots of configuration options for fine tuning. These can be viewed anytime by typing `npx webproducer -h` which produces the following:
+WebProducer can run nicely out-of-the-box against an appropriately [structured source tree](#default-directory-structure) it also has lots of configuration options for fine tuning. These can be viewed anytime by typing `npx webproducer -h` which produces the following:
 
 ``` shell
   -V, --version               output the version number
@@ -82,7 +82,7 @@ While WebProducer can run nicely out-of-the-box against an appropriately [struct
 
 #### Path Overrides
 
-While WebProducer provides defaults for all paths that follow the Joy naming structure developers are free to override as required to suit their particular directory conventions.
+WebProducer provides defaults for all paths that follow the Joy naming structure developers are free to override as required to suit their particular directory conventions.
 
 - **-r, --relative-root**: The relative root of all the source files (default: "./src")
 - **-d, --data**: Path to the JSON data file. (default: "./src/data/data.json")
@@ -116,7 +116,7 @@ A couple of options to help get the most out of WebProducer.
 
 ### Default Directory Structure
 
-While WebProducer expects source files to be found in the following tree structure by default, they can all be overridden to suit your own structure using the various CLI flags.
+WebProducer expects source files to be found in the following tree structure by default, but they can be overridden using various CLI flags.
 
 ``` shell
 . (your project root)
