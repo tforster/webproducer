@@ -4,7 +4,7 @@
 const start = new Date();
 
 // System dependencies
-import { readFile } from "fs/promises";
+import { readFile, stat } from "fs/promises";
 
 // Third party dependencies
 import { Command } from "commander";
@@ -22,7 +22,8 @@ process.on("uncaughtException", (err) => {
 const program = new Command();
 
 // Get some meta from package.json into our Commander definition
-const packagePath = process.argv[1].replace("scripts/cli/index.js", "package.json");
+// TODO: Add some error handling in case there isn't a package.json for some reason
+const packagePath = `${process.cwd()}/package.json`;
 const { description, version, name } = JSON.parse(await readFile(packagePath, { encoding: "utf-8" }));
 program.name(name).description(description).version(version);
 
@@ -34,7 +35,7 @@ program
   .option("-s, --scripts [scripts]", "Comma separated list of ES Module entry points", "./src/scripts/main.js")
   .option("-c, --css [css]", "Comma separated list of stylesheet entry points", "./src/stylesheets/main.css")
   .option("-f, --files [files]", "Comma separated list of static file globs", "./src/images/**/*.*")
-  .option("-x, --transform [transform]", "Optional custom data transform")
+  .option("-x, --transform [transform]", "Optional custom data transform", "./src/data/transform.js")
   .option("-o, --out [out]", "Output directory", "./dist")
   .option("-p, --prefix-css", "Enable vendor prefixing of CSS", false)
   .option("--no-scripts", "Do not process scripts")
@@ -58,12 +59,17 @@ let customPipelines = 0;
         },
     scripts: !options.scripts ? false : { entryPoints: options.scripts.split(",") },
     stylesheets: !options.css ? false : { entryPoints: options.css.split(",") },
-    files: !options.files ? false : { stream: vfs.src(options.files.split(",")), relativeRoot: options.relativeRoot },
+    files: !options.files
+      ? false
+      : {
+          stream: vfs.src(options.files.split(",")),
+          relativeRoot: options.relativeRoot,
+        },
   };
 
   try {
-    // Check to see if a path to an optional inbound data transform was provided
-    if (options.transform && params.pages) {
+    // Check to see if a pages object and actual transform file exists
+    if (params.pages && !!(await stat(options.transform).catch(() => false))) {
       // Dynamically import the custom transform module
       const transformStream = await import(`${process.cwd()}/${options.transform}`);
       // Pipe the inbound data stream to the custom transform

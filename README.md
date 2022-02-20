@@ -34,7 +34,7 @@ While WebProducer could be thought of as static site generator it differs in tha
 - **Lean and Lightweight**: Requiring just 6 dependencies WebProducer's at-rest and in-memory footprint is very small.
 - **Uses Handlebars Templates**: Although Handlebars has been around for a long time it is still significantly faster than &lt;insert bloaty framework du jour here>. And, the Handlebars token replacement syntax means it can be used to generate files of many types including HTML, CSS, JS, text, XML, etc. This makes it easy to generate all files in a website including robots.txt, sitemap.xml, manifest.json, etc.
 
-For a detailed technical explanation please see the [Developer Guide](../webproducer/docs/developer-guide.md).
+For a detailed technical explanation please see the [Developer Guide](./docs/developer-guide.md).
 
 ## Try It Out
 
