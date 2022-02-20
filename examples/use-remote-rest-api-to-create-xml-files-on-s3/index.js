@@ -1,7 +1,5 @@
 "use strict";
 
-// TODO: Wrap in an AWS Lambda function that exposes a single REST POST endpoint to act as the triggering webhook
-
 // Cache the start time as early as possible for best accuracy in elapsed time reporting.
 const start = new Date();
 
@@ -16,7 +14,7 @@ const destination = {
   distributionId: "abc",
 };
 
-// Setup the incoming GraphQL data stream. In this case we fake the response from a GraphQL server by calling a GitHub Gist mock.
+// We use a GitHub Gist to mock a REST API GET request
 const response = await fetch(
   // eslint-disable-next-line max-len
   "https://gist.githubusercontent.com/tforster/61d4a11fe10d9ddb5fd1264feedd83a3/raw/3c7f80fb8e06900b72a41c4592a47c8ce9bb084c/graphql.json"
@@ -50,7 +48,6 @@ dest.on("finish", () => {
     `Processed ${webproducer.resources} XML files totalling ${(webproducer.size / (1024 * 1024)).toFixed(2)} Mb to ${
       destination.bucket
     } in ${new Date() - start} ms.`
-    // TODO: Invalidate CloudFront
   );
 });
 

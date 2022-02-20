@@ -8,6 +8,7 @@ Are you interested in using WebProducer in your own project? Then take a look at
 - [GitHub Repo as Template Source](#github-repo-as-template-source)
 - [Local Developer Tool](#local-developer-tool)
 - [Serverless Web Publisher to S3/CloudFront](#serverless-web-publisher-to-s3cloudfront)
+- [Use Remote REST API to Create XML files on S3](#use-remote-rest-api-to-create-xml-files-on-s3)
 - [Web Components](#web-components)
 
 ## Getting Started
@@ -21,7 +22,6 @@ This example shows how WebProducer can be used to generate a PWA using templates
 ## Local Developer Tool
 
 This is a simplified version of the WebProducer CLI that illustrates how WebProducer can be leveraged in a custom build script.
-
 
 ## Serverless Web Publisher to S3/CloudFront
 
