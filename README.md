@@ -133,50 +133,9 @@ WebProducer expects source files to be found in the following tree structure by 
 
 ## API
 
-WebProducer's simple streams API is easy to incorporate into other applications and custom scripts as the following pseudo-code illustrates.
+See how easy WebProducer's simple streams API is with [Use Remote REST API to Create XML files on S3](./examples/use-remote-rest-api-to-create-xml-files-on-s3/README.md). Or check out the [examples](./examples/README.md) directory for others.
 
-``` javascript
-// Create a writeable stream for output
-const outStream = new SomeFancyS3BucketStreamUtility();
-
-// Create a hash of parameters
-const params = {
-  pages: {
-    data: { stream: "A readable stream from GraphQL query" },
-    theme: { stream: "An array of readable streams resolving to handlebars files" },
-  },
-  scripts: { entryPoints: "An array of script names that serve as entry points" },
-  stylesheets: { entryPoints: "An array of stylesheet names that serve as entry points" },
-  files: { 
-    stream: "An array of readable streams resolving to static files"), 
-    relativeRoot: "A string indicating the base path" 
-  },
-  out: "The directory to write to in the output stream",
-};
-
-// Set some options
-const options = {
-  prefix-css: true,
-  noFiles: false,
-  noPages: true,
-}
-
-// Create a new instance of WebProducer
-const webproducer = new WebProducer(options);
-
-// Handle the finish event to write some fancy output (optional)
-webproducer.mergeStream.on("finish", () => {
-  console.log(`Produced ${webproducer.resources} files.`);
-});
-
-// Start producing
-webproducer.produce(params);
-
-// Start piping the produced files to S3 
-webproducer.mergeStream.pipe(outStream);
-```
-
-For real examples see [examples/README.md](./examples/README.md) or consult the [Developer Guide](/docs/developer-guide.md) for more information.
+Full API details are coming in the [Developer Guide](/docs/developer-guide.md).
 
 ## Change Log
 

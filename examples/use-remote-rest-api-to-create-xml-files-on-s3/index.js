@@ -9,10 +9,8 @@ import s3 from "vinyl-s3";
 import vfs from "vinyl-fs";
 import WebProducer from "../../src/index.js";
 
-const destination = {
-  bucket: "s3://webproducer-test.tforster.com",
-  distributionId: "abc",
-};
+// Define an S3 bucket to send the XML files to
+const bucket = "s3://webproducer-test.tforster.com";
 
 // We use a GitHub Gist to mock a REST API GET request
 const response = await fetch(
@@ -20,34 +18,26 @@ const response = await fetch(
   "https://gist.githubusercontent.com/tforster/61d4a11fe10d9ddb5fd1264feedd83a3/raw/3c7f80fb8e06900b72a41c4592a47c8ce9bb084c/graphql.json"
 );
 
-// WebProducer parameters. Processing XML files only so unneeded scripts, stylesheets and static files pipelines are set to false.
+// Minimum required WebProducer parameters for this example is just the pages object
 const params = {
   pages: {
     data: { stream: response.body },
     theme: { stream: vfs.src(["./src/templates/**/*.hbs"]) },
   },
-  scripts: false,
-  stylesheets: false,
-  files: false,
 };
 
 // Create a new instance of WebProducer
 const webproducer = new WebProducer();
 
 // Initialise the destination
-const dest = s3.dest(destination.bucket);
-
-// Create an error handler to capture any S3 issues
-dest.on("error", (err) => {
-  console.error("S3 related error:", err);
-});
+const dest = s3.dest(bucket);
 
 // Add an event handler to write some useful information to the console when everything is complete
 dest.on("finish", () => {
   console.log(
-    `Processed ${webproducer.resources} XML files totalling ${(webproducer.size / (1024 * 1024)).toFixed(2)} Mb to ${
-      destination.bucket
-    } in ${new Date() - start} ms.`
+    `Processed ${webproducer.resources} XML files totalling ${(webproducer.size / (1024 * 1024)).toFixed(2)} Mb to ${bucket} in ${
+      new Date() - start
+    } ms.`
   );
 });
 
