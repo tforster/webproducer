@@ -18,9 +18,9 @@ const response = await fetch(
   "https://gist.githubusercontent.com/tforster/61d4a11fe10d9ddb5fd1264feedd83a3/raw/3c7f80fb8e06900b72a41c4592a47c8ce9bb084c/graphql.json"
 );
 
-// Minimum required WebProducer parameters for this example is just the pages object
+// Minimum required WebProducer parameters for this example is just the uris object
 const params = {
-  pages: {
+  uris: {
     data: { stream: response.body },
     theme: { stream: vfs.src(["./src/templates/**/*.hbs"]) },
   },

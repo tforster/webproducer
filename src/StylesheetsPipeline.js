@@ -39,7 +39,7 @@ class StylesheetsPipeline {
         const path = out.path;
         let contents;
 
-        if (path.endsWith(".css") && this.options.autoprefixCss) {
+        if (path.endsWith(".css") && this.options?.autoprefixCss) {
           // Optionally prefix the css
           contents = Buffer.from(await this.autoPrefix(out.text));
         } else {

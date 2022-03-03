@@ -14,6 +14,9 @@ WebProducer is a data-driven tool for highly performant production of websites a
     - [Disable Pipelines](#disable-pipelines)
     - [Housekeeping Options](#housekeeping-options)
   - [Default Directory Structure](#default-directory-structure)
+  - [Upgrading from 0.9.0 to 1.0.0](#upgrading-from-090-to-100)
+    - [New `uris` Property](#new-uris-property)
+    - [`modelName` Change to `webProducerKey`](#modelname-change-to-webproducerkey)
 - [API](#api)
 - [Change Log](#change-log)
 - [Code of Conduct](#code-of-conduct)
@@ -75,8 +78,8 @@ WebProducer can run nicely out-of-the-box against an appropriately [structured s
   -x, --prefix-css            Enable autoprefixing of CSS (default: false)
   --no-scripts                Do not process scripts
   --no-css                    Do not process stylesheets
-  --no-files                  Do not process files
-  --no-pages                  Do not process pages
+  --no-files                  Do not process static files
+  --no-uris                   Do not process uris
   -h, --help                  display help for command
 ```
 
@@ -105,7 +108,7 @@ While WebProducer is already very fast, the various `--no-*` switches can be use
 - **--no-scripts**: Disables the scripts pipeline. No scripts will be parsed or written to the output stream.
 - **--no-css**: Disables the stylesheets pipeline. No stylesheets will be parsed or written to the output stream.
 - **--no-files**: Disables the static files pipeline that copies assets from source. No static files will be parsed or written to the output stream.
-- **--no-pages**: Disables the templates pipeline. No template driven files will be parsed or written to the output stream.
+- **--no-uris**: Disables the templates pipeline. No template driven files will be parsed or written to the output stream.
 
 #### Housekeeping Options
 
@@ -129,6 +132,68 @@ WebProducer expects source files to be found in the following tree structure by 
     └── theme
         ├── common
         └── templates
+```
+
+### Upgrading from 0.9.0 to 1.0.0
+
+There are several breaking changes to be aware of when upgrading to v1.0.0.
+
+#### New `uris` Property
+
+Pre 1.0.0 saw the URI keys at the top level of the data structure. E.g.
+
+``` JSON
+{
+  "/index": { ... },
+  "/about": { ... },
+  ...
+}
+```
+
+For increased legibility these URIs should be moved to the uris property as in:
+
+``` JSON
+{ 
+  "uris": {
+    "/index": { ... },
+    "/about": { ... },
+    ...
+  },
+  ...
+}
+```
+
+_Note that URI is favoured over URL since the output of WebProducer does not always have to be a web page._
+
+#### `modelName` Change to `webProducerKey`
+
+The `modelName` property used to identify an .hbs template was named so as a direct result of using a [DatoCMS](https://www.datocms.com/) GraphQL source in an early implementation of WebProducer. To be more datasource agnostic and reduce the likelihood of property collisions modelName has been changed to webProducerKey.
+
+In addition, the new webProducerKey can accept path separators to align with richer component based front-end architectures.
+
+For example, consider the following data snippet and related themes directory structure:
+
+``` JSON
+{
+  "uris": {
+    "/admin/reports": {
+      ...
+      "webProducerKey": "/admin/report/report"
+    }
+  }
+}
+```
+
+``` shell
+. (your project root)
+└── src
+    ├── ...
+    └── pages
+        └── admin
+            ├── ...
+            └── report
+                ├── ...
+                └── report.hbs
 ```
 
 ## API
