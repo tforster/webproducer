@@ -6,7 +6,10 @@ import { Writable } from "stream";
 // Third party dependencies
 import handlebars from "handlebars";
 import { minify as htmlMinify } from "html-minifier";
-import { streamsFinish, vinyl } from "./Utils.js";
+import { log, streamLog, streamsFinish, vinyl } from "./Utils.js";
+
+// TODO!!!! 1. Expect dataStream to be type object of individual URI objects; 2. Wait for themeStream to complete loading to memory
+// and THEN pipe dataStream to themeStream
 
 class TemplatePipeline {
   /**
@@ -32,19 +35,20 @@ class TemplatePipeline {
     const { data, templates } = await this.parseFiles(dataStreamR, themeStreamR);
 
     return new Promise((resolve) => {
-      if (!data.pages) {
+      if (!data.uris) {
+        const msg = "TemplatePipeline: Empty or missing data.uris.";
         // No data? No point in trying to create content so immediately resolve().
-        console.warn("Unexpected condition: Data not found.");
-        resolve("TemplatePipeline: Empty data.");
+        console.warn(msg);
+        resolve(msg);
       }
 
       handlebars.partials = templates;
-
-      // Iterate the pages sub object of data
-      for (const [key, page] of Object.entries(data.pages)) {
-        // Check that we have a page and modelName otherwise gracefully exit this specific iteration
-        if (!(page && page.modelName)) {
-          console.warn("Unexpected condition: Page and/or modelName not found.");
+      console.log(new Date() - this.options.startTime + " templates starting");
+      // Iterate the uris sub object of data
+      for (const [key, uri] of Object.entries(data.uris)) {
+        // Check that we have a page and webProducerKey otherwise gracefully exit this specific iteration
+        if (!uri?.webProducerKey) {
+          console.warn(`Unexpected condition: webProducerKey not found processing [${key}, ${uri}]`);
           continue;
         }
 
@@ -53,12 +57,12 @@ class TemplatePipeline {
         // Declare a placeholder for the Vinyl file that will be generated
         let vinylFile;
 
-        // Get the template referenced by the modelName
-        const template = templates[`${page.modelName}.hbs`];
+        // Get the template referenced by the webProducerKey
+        const template = templates[`${uri.webProducerKey}.hbs`];
 
         if (template) {
           // Generate content by merging the pageData into the named Handlebars template
-          const generatedContents = template(page);
+          const generatedContents = template(uri);
 
           // Create a new Vinyl object from the generated data
           vinylFile = vinyl({
@@ -72,23 +76,23 @@ class TemplatePipeline {
               htmlMinify(vinylFile.contents.toString(), { collapseWhitespace: true, removeComments: true })
             );
           }
-        } else if (page.modelName === "redirect") {
+        } else if (uri.webProducerKey === "redirect") {
           // Redirects are pseudo-virtual text files that are not created via a handlebars template
           vinylFile = vinyl({
             path,
-            contents: Buffer.from(path),
+            contents: Buffer.from(uri.targetAddress),
             redirect: 301,
-            targetAddress: page.targetAddress,
+            targetAddress: uri.targetAddress,
           });
         } else {
-          console.warn("Unexpected condition: page and/or modelName not found.");
+          log(`Unexpected condition: page and webProducerKey not found. ${key}, ${uri}`);
           continue;
         }
 
         // Add the vinyl file to the mergeStream
         mergeStream.push(vinylFile);
       }
-
+      console.log(new Date() - this.options.startTime + " templates complete");
       // Tell index.js that templates have finished processing
       resolve("TemplatePipeline: Complete");
     });
@@ -103,21 +107,34 @@ class TemplatePipeline {
    * @memberof TemplatePipeline
    */
   async parseFiles(dataStreamR, themeStreamR) {
+    dataStreamR.id = "dataStreamR";
+    themeStreamR.id = "themeStreamR";
+    streamLog(dataStreamR);
+    streamLog(themeStreamR);
+
     const templates = {};
     let data = {};
+
+    dataStreamR.on("end", () => {
+      console.log(new Date() - this.options.startTime + " data finished reading");
+    });
+    themeStreamR.on("end", () => {
+      console.log(new Date() - this.options.startTime + " themes finished reading");
+    });
 
     // Process the theme stream to build an in-memory array of compiled handlebars templates
     const themeStreamW = new Writable({
       objectMode: true,
       write: (file, _, done) => {
         // Compile the theme file into the handlebars.templates hash
-        templates[file.basename] = handlebars.compile(file.contents.toString());
+        templates[file.relative] = handlebars.compile(file.contents.toString());
+        console.log(`${new Date() - this.options.startTime}: compiled ${file.relative}`);
         done();
       },
-      error: (err) => {
-        console.error("Error themeStreamW", err);
-      },
     });
+
+    themeStreamW.id = "themeStreamW";
+    streamLog(themeStreamW);
 
     // Process the data stream to create an in-memory data object
     const dataStreamW = new Writable({
@@ -145,6 +162,9 @@ class TemplatePipeline {
       },
     });
 
+    dataStreamW.id = "dataStreamW";
+    streamLog(dataStreamW);
+
     // Start piping both in parallel
     dataStreamR.pipe(dataStreamW);
     themeStreamR.pipe(themeStreamW);
@@ -152,6 +172,10 @@ class TemplatePipeline {
     // Allow all the streams to finish processing before returning
     await streamsFinish([dataStreamW, themeStreamW]);
 
+    // Cleanup
+    dataStreamR.unpipe(dataStreamW);
+    themeStreamR.unpipe(themeStreamW);
+    console.log(`${new Date() - this.options.startTime}: Returning { data, templates }`);
     return { data, templates };
   }
 }

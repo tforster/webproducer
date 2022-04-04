@@ -31,13 +31,15 @@ class StaticFilesPipeline {
     return new Promise((resolve) => {
       // Tell index.js we are done processing static files
       staticFilesStreamR.on("end", () => {
+        console.log(new Date() - this.options.startTime + " static files finished reading");
+
         resolve("static");
       });
 
       // Inject a fresh new Vinyl file with the correct path into the mergeStream
       staticFilesStreamR.on("data", (f) => {
         const v = vinyl({
-          path: `/${f.relative}`,
+          path: `${f.path.replace(this.options.relativeRoot, "")}`,
           contents: f.contents,
         });
         mergeStream.push(v);

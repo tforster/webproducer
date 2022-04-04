@@ -5,6 +5,7 @@ const start = new Date();
 
 // System dependencies
 import { readFile, stat } from "fs/promises";
+import path from "path";
 
 // Third party dependencies
 import { Command } from "commander";
@@ -20,6 +21,11 @@ process.on("uncaughtException", (err) => {
 
 // Create a new instance of Commander
 const program = new Command();
+
+const fileExists = async (filePath) => {
+  const exists = !!(await stat(path.join(process.cwd(), filePath)).catch(() => false));
+  return exists;
+};
 
 // Get some meta from package.json into our Commander definition
 // TODO: Add some error handling in case there isn't a package.json for some reason
@@ -40,18 +46,22 @@ program
   .option("-p, --prefix-css", "Enable vendor prefixing of CSS", false)
   .option("--no-scripts", "Do not process scripts")
   .option("--no-css", "Do not process stylesheets")
-  .option("--no-files", "Do not process files")
-  .option("--no-pages", "Do not process pages");
+  .option("--no-files", "Do not process static files")
+  .option("--no-uris", "Do not process uris");
 
 program.parse(process.argv);
 const options = { ...program.opts() };
+
+// Expand the relative root to absolute
+options.relativeRoot = path.join(process.cwd(), options.relativeRoot);
 
 // Set the custom pipelines count to zero
 let customPipelines = 0;
 
 (async () => {
+  // TODO: Refactor for incremental fileExists checking, but only if the file is in play (e.g. pipeline is active)
   const params = {
-    pages: !options.pages
+    uris: !options.uris
       ? false
       : {
           data: { stream: vfs.src([options.data]) },
@@ -68,12 +78,12 @@ let customPipelines = 0;
   };
 
   try {
-    // Check to see if a pages object and actual transform file exists
-    if (params.pages && !!(await stat(options.transform).catch(() => false))) {
+    // Check to see if a uris object and actual transform file exists
+    if (params.uris && (await fileExists(options.transform))) {
       // Dynamically import the custom transform module
       const transformStream = await import(`${process.cwd()}/${options.transform}`);
       // Pipe the inbound data stream to the custom transform
-      params.pages.data.stream.pipe(transformStream.default);
+      params.uris.data.stream.pipe(transformStream.default);
       // Increment the count of custom pipelines
       customPipelines++;
     }

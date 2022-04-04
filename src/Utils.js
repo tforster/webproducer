@@ -25,18 +25,49 @@ class Utils {
    * @memberof Utils
    */
   static streamsFinish(streams) {
-    return Promise.all(
-      streams.map(
-        (stream) =>
-          new Promise((resolve) => {
-            stream.on("finish", () => {
-              resolve(stream);
-            });
-          })
-      )
-    );
+    try {
+      return Promise.all(
+        streams.map(
+          (stream) =>
+            new Promise((resolve) => {
+              stream.on("finish", () => {
+                console.log("streams finish", stream.id);
+                resolve(stream);
+              });
+              // stream.on("close", () => {
+              //   resolve(stream);
+              // });
+            })
+        )
+      );
+    } catch (err) {
+      console.error("errx", err);
+    }
+  }
+
+  static log(msg) {
+    if (true) {
+      console.log(msg);
+    }
+  }
+
+  static streamLog(stream) {
+    // stream.on("end", () => {
+    //   console.log(`${stream.id} end`);
+    // });
+    // stream.on("data", () => {
+    //   //console.log(`${stream.id} data`);
+    // });
+    // stream.on("finish", () => {
+    //   console.log(`${stream.id} finish`);
+    // });
+    // stream.on("close", () => {
+    //   console.log(`${stream.id} close`);
+    // });
   }
 }
 
-export const vinyl = Utils.vinyl;
+export const log = Utils.log;
 export const streamsFinish = Utils.streamsFinish;
+export const streamLog = Utils.streamLog;
+export const vinyl = Utils.vinyl;

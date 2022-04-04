@@ -9,6 +9,12 @@ import ScriptsPipeline from "./ScriptsPipeline.js";
 import StylesheetsPipeline from "./StylesheetsPipeline.js";
 import TemplatePipeline from "./TemplatePipeline.js";
 
+import { streamLog } from "./Utils.js";
+
+process.on("uncaughtException", (err) => {
+  console.error("Uncaught Exception", err);
+});
+
 /**
  * @description: The entry point of the WebProducer engine
  * @date 2022-02-06
@@ -34,6 +40,9 @@ class WebProducer {
         done(null, file);
       },
     });
+
+    this.mergeStream.id = "mergeStream";
+    streamLog(this.mergeStream);
   }
 
   /**
@@ -43,6 +52,7 @@ class WebProducer {
    * @memberof WebProducer
    */
   async produce(params) {
+    // TODO: Move this inside the constructor for adjacency reasons
     this.mergeStream.on("data", (f) => {
       // Increment the accumulated file size every time we add a new file to the stream
       this.size += f.contents.length;
@@ -50,10 +60,10 @@ class WebProducer {
       this.resources++;
     });
 
-    if (params?.pages?.data?.stream && params?.pages?.theme?.stream) {
+    if (params?.uris?.data?.stream && params?.uris?.theme?.stream) {
       // Enable template processing
       this.pipelinePromises.push(
-        new TemplatePipeline(this.options).pipeTo(this.mergeStream, params.pages.data.stream, params.pages.theme.stream)
+        new TemplatePipeline(this.options).pipeTo(this.mergeStream, params.uris.data.stream, params.uris.theme.stream)
       );
     }
 
@@ -74,6 +84,7 @@ class WebProducer {
 
     // Wait for all streams to complete
     await Promise.all(this.pipelinePromises);
+
     // Emit the end event
     this.mergeStream.end();
   }
