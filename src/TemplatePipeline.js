@@ -7,6 +7,7 @@ import { Writable } from "stream";
 import handlebars from "handlebars";
 import { minify as htmlMinify } from "html-minifier";
 import { log, streamLog, streamsFinish, vinyl } from "./Utils.js";
+import mime from "mime";
 
 // TODO!!!! 1. Expect dataStream to be type object of individual URI objects; 2. Wait for themeStream to complete loading to memory
 // and THEN pipe dataStream to themeStream
@@ -68,6 +69,7 @@ class TemplatePipeline {
           vinylFile = vinyl({
             path,
             contents: Buffer.from(generatedContents),
+            contentType: mime.getType(path),
           });
 
           if (vinylFile.extname === "" || vinylFile.extname === ".html") {
@@ -75,7 +77,7 @@ class TemplatePipeline {
             vinylFile.contents = Buffer.from(
               htmlMinify(vinylFile.contents.toString(), { collapseWhitespace: true, removeComments: true })
             );
-            // Assume that the destination stream code will auto negotiate content type for non-extensionless
+            // Force extensionless to HTML mime type
             vinylFile.contentType = "text/html";
           }
         } else if (uri.webProducerKey === "redirect") {
