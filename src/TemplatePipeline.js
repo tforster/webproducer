@@ -87,6 +87,7 @@ class TemplatePipeline {
             contents: Buffer.from(uri.targetAddress),
             redirect: 301,
             targetAddress: uri.targetAddress,
+            // TODO: We may need to force an S3 specific content type here
           });
         } else {
           log(`Unexpected condition: page and webProducerKey not found. ${key}, ${uri}`);

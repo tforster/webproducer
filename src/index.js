@@ -3,12 +3,14 @@
 // System dependencies
 import { Transform } from "stream";
 
+// Third party dependencies
+import mime from "mime";
+
 // Project dependencies
 import StaticFilesPipeline from "./StaticFilesPipeline.js";
 import ScriptsPipeline from "./ScriptsPipeline.js";
 import StylesheetsPipeline from "./StylesheetsPipeline.js";
 import TemplatePipeline from "./TemplatePipeline.js";
-
 import { streamLog } from "./Utils.js";
 
 process.on("uncaughtException", (err) => {
@@ -41,6 +43,18 @@ class WebProducer {
       },
     });
 
+    // Housekeeping: Count resources, accumulate the file size and set missing content types.
+    this.mergeStream.on("data", (file) => {
+      // Increment the accumulated file size every time we add a new file to the stream
+      this.size += file.contents.length;
+      // Increment the resource counter every time we add a new file to the stream
+      this.resources++;
+      // If the file doesn't have a content type (preset only in TemplatePipeline), set it to the default
+      if (!file.contentType) {
+        file.contentType = mime.getType(file.path);
+      }
+    });
+
     this.mergeStream.id = "mergeStream";
     streamLog(this.mergeStream);
   }
@@ -52,14 +66,6 @@ class WebProducer {
    * @memberof WebProducer
    */
   async produce(params) {
-    // TODO: Move this inside the constructor for adjacency reasons
-    this.mergeStream.on("data", (f) => {
-      // Increment the accumulated file size every time we add a new file to the stream
-      this.size += f.contents.length;
-      // Increment the resource counter every time we add a new file to the stream
-      this.resources++;
-    });
-
     if (params?.uris?.data?.stream && params?.uris?.theme?.stream) {
       // Enable template processing
       this.pipelinePromises.push(
