@@ -75,6 +75,8 @@ class TemplatePipeline {
             vinylFile.contents = Buffer.from(
               htmlMinify(vinylFile.contents.toString(), { collapseWhitespace: true, removeComments: true })
             );
+            // Assume that the destination stream code will auto negotiate content type for non-extensionless
+            vinylFile.contentType = "text/html";
           }
         } else if (uri.webProducerKey === "redirect") {
           // Redirects are pseudo-virtual text files that are not created via a handlebars template
