@@ -8,12 +8,11 @@
   },
   "dependencies": {
     "autoprefixer": "^10.4.2",
-    "commander": "^9.0.0",
     "esbuild": "^0.14.23",
     "handlebars": "^4.7.7",
     "html-minifier": "^4.0.0",
     "vinyl": "^2.2.1",
-    "vinyl-fs": "^3.0.3"
+    "postcss": "^8.4.12"
   },
   "description": "WebProducer, or simply WP, is a serverless application for publishing content to the web. It equally supports websites and web applications with a lean, streams based, architecture.",
   "devDependencies": {
@@ -25,7 +24,9 @@
     "eslint-plugin-prettier": "^4.0.0",
     "node-fetch": "^3.2.0",
     "prettier": "^2.5.1",
-    "vinyl-s3": "^0.3.1"
+    "vinyl-s3": "^0.3.1",
+    "vinyl-fs": "^3.0.3",
+    "commander": "^9.0.0"
   },
   "funding": {
     "type": "patreon",
