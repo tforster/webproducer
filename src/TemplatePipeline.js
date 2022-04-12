@@ -86,8 +86,9 @@ class TemplatePipeline {
             path,
             contents: Buffer.from(uri.targetAddress),
             redirect: 301,
-            targetAddress: uri.targetAddress,
-            // TODO: We may need to force an S3 specific content type here
+            // // Note: AWS S3 will convert this to the specific header x-amz-website-redirect-location
+            // targetAddress: uri.targetAddress,
+            contentType: "text/html",
           });
         } else {
           log(`Unexpected condition: page and webProducerKey not found. ${key}, ${uri}`);
