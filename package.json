@@ -7,27 +7,27 @@
     "url": "https://github.com/tforster/webproducer/issues"
   },
   "dependencies": {
-    "autoprefixer": "^10.4.7",
-    "esbuild": "^0.14.39",
-    "handlebars": "^4.7.7",
+    "autoprefixer": "^10.4.16",
+    "esbuild": "^0.19.5",
+    "handlebars": "^4.7.8",
     "html-minifier": "^4.0.0",
     "mime": "^3.0.0",
-    "postcss": "^8.4.14",
-    "vinyl": "^2.2.1"
+    "postcss": "^8.4.31",
+    "vinyl": "2.2.1"
   },
   "description": "WebProducer, or simply WP, is a serverless application for publishing content to the web. It equally supports websites and web applications with a lean, streams based, architecture.",
   "devDependencies": {
-    "eslint": "^8.15.0",
-    "eslint-config-prettier": "^8.5.0",
-    "eslint-plugin-html": "^6.2.0",
-    "eslint-plugin-import": "^2.26.0",
+    "eslint": "^8.52.0",
+    "eslint-config-prettier": "^9.0.0",
+    "eslint-plugin-html": "^7.1.0",
+    "eslint-plugin-import": "^2.29.0",
     "eslint-plugin-node": "^11.1.0",
-    "eslint-plugin-prettier": "^4.0.0",
-    "node-fetch": "^3.2.4",
-    "prettier": "^2.6.2",
+    "eslint-plugin-prettier": "^5.0.1",
+    "node-fetch": "^3.3.2",
+    "prettier": "^3.0.3",
     "vinyl-s3": "^0.3.1",
-    "vinyl-fs": "^3.0.3",
-    "commander": "^9.2.0"
+    "vinyl-fs": "3.0.3",
+    "commander": "^11.1.0"
   },
   "overrides": {
     "glob-parent": "5.1.2",
@@ -59,7 +59,7 @@
     "url": "git+https://github.com/tforster/webproducer.git"
   },
   "type": "module",
-  "version": "1.0.0-beta.0",
+  "version": "1.0.0-beta.1",
   "files": [
     "/src",
     "/scripts"

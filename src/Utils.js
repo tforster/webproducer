@@ -4,15 +4,12 @@ import Vinyl from "vinyl";
 class Utils {
   /**
    * @description: Lightweight wrapper around the Vinyl constructor for simplicity and consistency.
-   * @date 2022-02-06
    * @static
    * @param {object} vinylParams: Typical Vinyl params such as path and contents
    * @return {object}             A new Vinyl object
    * @memberof Utils
    */
   static vinyl(vinylParams) {
-    // Force cwd to (virtual) root as it makes it MUCH easier to work with and debug
-    vinylParams.cwd = vinylParams.cwd || "/";
     return new Vinyl(vinylParams);
   }
 
@@ -46,6 +43,7 @@ class Utils {
   }
 
   static log(msg) {
+    // eslint-disable-next-line no-constant-condition
     if (true) {
       console.log(msg);
     }

@@ -7,6 +7,8 @@ _A detailed history of project versions and associated release notes._
 
 ## Table of Contents <!-- omit in toc -->
 
+- [v1.0.0-beta.1 **Fix for virtual file path issue**](#v100-beta1-fix-for-virtual-file-path-issue)
+- [v1.0.0-beta.0 **Publish to NPM**](#v100-beta0-publish-to-npm)
 - [v1.0.0 **WebProducer as a Module**](#v100-webproducer-as-a-module)
 - [v0.9.0 **Support JS and CSS file bundling** (2021-04-05)](#v090-support-js-and-css-file-bundling-2021-04-05)
 - [v0.8.0 **Shift transform logic from transform.js to Transform module** (2020-12-13)](#v080-shift-transform-logic-from-transformjs-to-transform-module-2020-12-13)
@@ -21,6 +23,14 @@ _A detailed history of project versions and associated release notes._
 - [v0.2.0 **First-use updates** (2020-02-19)](#v020-first-use-updates-2020-02-19)
 - [v0.1.0 **Initial creation** (2020-01-07)](#v010-initial-creation-2020-01-07)
   
+## v1.0.0-beta.1 **Fix for virtual file path issue**
+
+A minor bugfix to Utils.js to correct an issue where virtual files in the pipeline inherited the path of the parent project as their base. This caused files to be generated into the destination folder with the full path of the project appended. E.g. `/path/to/project/destination-folder/path/to/project/generated-file`
+
+## v1.0.0-beta.0 **Publish to NPM**
+
+The first NPM registry release of the new architecture.
+
 ## v1.0.0 **WebProducer as a Module**
 
 This release represents a complete overhaul and ground-up re-architecture of WebProducer with performance and reusability in mind.
