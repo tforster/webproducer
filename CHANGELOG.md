@@ -7,6 +7,7 @@ _A detailed history of project versions and associated release notes._
 
 ## Table of Contents <!-- omit in toc -->
 
+- [v1.0.0-beta.2 **Fix for virtual file path issue**](#v100-beta2-fix-for-virtual-file-path-issue)
 - [v1.0.0-beta.1 **Fix for virtual file path issue**](#v100-beta1-fix-for-virtual-file-path-issue)
 - [v1.0.0-beta.0 **Publish to NPM**](#v100-beta0-publish-to-npm)
 - [v1.0.0 **WebProducer as a Module**](#v100-webproducer-as-a-module)
@@ -23,6 +24,12 @@ _A detailed history of project versions and associated release notes._
 - [v0.2.0 **First-use updates** (2020-02-19)](#v020-first-use-updates-2020-02-19)
 - [v0.1.0 **Initial creation** (2020-01-07)](#v010-initial-creation-2020-01-07)
   
+## v1.0.0-beta.2 **Fix for virtual file path issue**
+
+- Reversed change from v1.0.0-beta.1 which was an erroneous issue.
+- Bumped all dependencies and devDependencies to latest, except for vinyl* that have breaking changes.
+- Removed annoying console.log() lines
+
 ## v1.0.0-beta.1 **Fix for virtual file path issue**
 
 A minor bugfix to Utils.js to correct an issue where virtual files in the pipeline inherited the path of the parent project as their base. This caused files to be generated into the destination folder with the full path of the project appended. E.g. `/path/to/project/destination-folder/path/to/project/generated-file`

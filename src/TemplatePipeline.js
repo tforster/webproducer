@@ -44,7 +44,6 @@ class TemplatePipeline {
       }
 
       handlebars.partials = templates;
-      console.log(new Date() - this.options.startTime + " templates starting");
       // Iterate the uris sub object of data
       for (const [key, uri] of Object.entries(data.uris)) {
         // Check that we have a page and webProducerKey otherwise gracefully exit this specific iteration
@@ -98,7 +97,6 @@ class TemplatePipeline {
         // Add the vinyl file to the mergeStream
         mergeStream.push(vinylFile);
       }
-      console.log(new Date() - this.options.startTime + " templates complete");
       // Tell index.js that templates have finished processing
       resolve("TemplatePipeline: Complete");
     });
@@ -121,12 +119,8 @@ class TemplatePipeline {
     const templates = {};
     let data = {};
 
-    dataStreamR.on("end", () => {
-      console.log(new Date() - this.options.startTime + " data finished reading");
-    });
-    themeStreamR.on("end", () => {
-      console.log(new Date() - this.options.startTime + " themes finished reading");
-    });
+    dataStreamR.on("end", () => {});
+    themeStreamR.on("end", () => {});
 
     // Process the theme stream to build an in-memory array of compiled handlebars templates
     const themeStreamW = new Writable({
@@ -134,7 +128,6 @@ class TemplatePipeline {
       write: (file, _, done) => {
         // Compile the theme file into the handlebars.templates hash
         templates[file.relative] = handlebars.compile(file.contents.toString());
-        console.log(`${new Date() - this.options.startTime}: compiled ${file.relative}`);
         done();
       },
     });
@@ -181,7 +174,6 @@ class TemplatePipeline {
     // Cleanup
     dataStreamR.unpipe(dataStreamW);
     themeStreamR.unpipe(themeStreamW);
-    console.log(`${new Date() - this.options.startTime}: Returning { data, templates }`);
     return { data, templates };
   }
 }

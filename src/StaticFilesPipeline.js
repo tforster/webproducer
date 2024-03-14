@@ -31,8 +31,6 @@ class StaticFilesPipeline {
     return new Promise((resolve) => {
       // Tell index.js we are done processing static files
       staticFilesStreamR.on("end", () => {
-        console.log(new Date() - this.options.startTime + " static files finished reading");
-
         resolve("static");
       });
 

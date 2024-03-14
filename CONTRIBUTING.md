@@ -1,6 +1,6 @@
 # Contributing <!-- omit in toc -->
 
-_A quick introduction to anyone interested in contributing to the WebProducer project._
+_A quick introduction to anyone interested in contributing to the Gilbert project._
 
 ## Table of Contents <!-- omit in toc -->
 

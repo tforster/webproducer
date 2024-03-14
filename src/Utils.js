@@ -10,6 +10,8 @@ class Utils {
    * @memberof Utils
    */
   static vinyl(vinylParams) {
+    // Force cwd to (virtual) root as it makes it MUCH easier to work with and debug
+    vinylParams.cwd = vinylParams.cwd || "/";
     return new Vinyl(vinylParams);
   }
 
@@ -28,7 +30,6 @@ class Utils {
           (stream) =>
             new Promise((resolve) => {
               stream.on("finish", () => {
-                console.log("streams finish", stream.id);
                 resolve(stream);
               });
               // stream.on("close", () => {

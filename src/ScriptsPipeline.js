@@ -46,7 +46,6 @@ class ScriptsPipeline {
         // Signal to index.js that we have completed
         return Promise.resolve("scripts done");
       });
-      //console.log(text);
     } catch (err) {
       console.error(err);
       throw err;
