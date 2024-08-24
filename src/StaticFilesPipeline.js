@@ -1,5 +1,3 @@
-"use strict";
-
 // Project dependencies
 import { vinyl } from "./Utils.js";
 

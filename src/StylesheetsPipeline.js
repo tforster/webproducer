@@ -1,5 +1,3 @@
-"use strict";
-
 // Third party dependencies
 
 import { build } from "esbuild";
@@ -22,7 +20,7 @@ class StylesheetsPipeline {
 
   async pipeTo(mergeStream, entryPoints) {
     // TODO: Remove non-CSS build() options
-    build({
+    const result = await build({
       entryPoints,
       outdir: "/",
       bundle: true,
@@ -34,27 +32,28 @@ class StylesheetsPipeline {
       metafile: true,
       treeShaking: true,
       loader: { ".eot": "file", ".ttf": "file", ".woff": "file", ".svg": "file" },
-    }).then(async (result) => {
-      for (const out of result.outputFiles) {
-        const path = out.path;
-        let contents;
+    });
 
-        if (path.endsWith(".css") && this.options?.autoprefixCss) {
-          // Optionally prefix the css
-          contents = Buffer.from(await this.autoPrefix(out.text));
-        } else {
-          contents = Buffer.from(out.contents);
-        }
+    for (const out of result.outputFiles) {
+      const path = out.path;
+      let contents;
 
-        const v = vinyl({
-          path,
-          contents,
-        });
-        mergeStream.push(v);
+      if (path.endsWith(".css") && this.options?.autoprefixCss) {
+        // Optionally prefix the css
+        contents = Buffer.from(await this.autoPrefix(out.text));
+      } else {
+        contents = Buffer.from(out.contents);
       }
 
-      return Promise.resolve("stylesheets done");
-    });
+      const v = vinyl({
+        path,
+        contents,
+      });
+      mergeStream.push(v);
+    }
+
+    const retVal = "stylesheets done";
+    return retVal;
   }
 
   autoPrefix(css) {

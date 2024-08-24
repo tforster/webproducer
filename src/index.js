@@ -1,5 +1,3 @@
-"use strict";
-
 // System dependencies
 import { Transform } from "stream";
 
@@ -11,6 +9,8 @@ import StaticFilesPipeline from "./StaticFilesPipeline.js";
 import ScriptsPipeline from "./ScriptsPipeline.js";
 import StylesheetsPipeline from "./StylesheetsPipeline.js";
 import TemplatePipeline from "./TemplatePipeline.js";
+import Delme from "./Delme.js";
+
 import { streamLog } from "./Utils.js";
 
 process.on("uncaughtException", (err) => {
@@ -66,8 +66,11 @@ class WebProducer {
    * @memberof WebProducer
    */
   async produce(params) {
+    this.pipelinePromises.push(new Delme().stream.pipe(this.mergeStream, { end: false }));
+
     if (params?.uris?.data?.stream && params?.uris?.theme?.stream) {
       // Enable template processing
+      // TODO: data and theme to be args for the constructor. The this to be a writable stream and pipeTo is .pipe(this.mergeStream)
       this.pipelinePromises.push(
         new TemplatePipeline(this.options).pipeTo(this.mergeStream, params.uris.data.stream, params.uris.theme.stream)
       );
@@ -75,16 +78,19 @@ class WebProducer {
 
     if (params?.files?.stream) {
       // Enable static files processing
+      // TODO: files.stream to be args for the constructor. The this to be a writable stream and pipeTo is .pipe(this.mergeStream)
       this.pipelinePromises.push(new StaticFilesPipeline(this.options).pipeTo(this.mergeStream, params.files.stream));
     }
 
     if (params?.scripts?.entryPoints) {
       // Enable scripts processing
+      // TODO: entrypoints to be args for the constructor. The this to be a writable stream and pipeTo is .pipe(this.mergeStream)
       this.pipelinePromises.push(new ScriptsPipeline(this.options).pipeTo(this.mergeStream, params.scripts.entryPoints));
     }
 
     if (params?.stylesheets?.entryPoints) {
       // Enable stylesheets processing
+      // TODO: entrypoints to be args for the constructor. The this to be a writable stream and pipeTo is .pipe(this.mergeStream)
       this.pipelinePromises.push(new StylesheetsPipeline(this.options).pipeTo(this.mergeStream, params.stylesheets.entryPoints));
     }
 

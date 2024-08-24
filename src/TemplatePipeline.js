@@ -1,5 +1,3 @@
-"use strict";
-
 // System dependencies
 import { Writable } from "stream";
 
@@ -35,71 +33,72 @@ class TemplatePipeline {
   async pipeTo(mergeStream, dataStreamR, themeStreamR) {
     const { data, templates } = await this.parseFiles(dataStreamR, themeStreamR);
 
-    return new Promise((resolve) => {
-      if (!data.uris) {
-        const msg = "TemplatePipeline: Empty or missing data.uris.";
-        // No data? No point in trying to create content so immediately resolve().
-        console.warn(msg);
-        resolve(msg);
+    // return new Promise((resolve) => {
+    if (!data.uris) {
+      const msg = "TemplatePipeline: Empty or missing data.uris.";
+      // No data? No point in trying to create content so immediately resolve().
+      console.warn(msg);
+      resolve(msg);
+    }
+
+    handlebars.partials = templates;
+    // Iterate the uris sub object of data
+    for (const [key, uri] of Object.entries(data.uris)) {
+      // Check that we have a page and webProducerKey otherwise gracefully exit this specific iteration
+      if (!uri?.webProducerKey) {
+        console.warn(`Unexpected condition: webProducerKey not found processing [${key}, ${uri}]`);
+        continue;
       }
 
-      handlebars.partials = templates;
-      // Iterate the uris sub object of data
-      for (const [key, uri] of Object.entries(data.uris)) {
-        // Check that we have a page and webProducerKey otherwise gracefully exit this specific iteration
-        if (!uri?.webProducerKey) {
-          console.warn(`Unexpected condition: webProducerKey not found processing [${key}, ${uri}]`);
-          continue;
+      // Cleanup any accidental whitespace
+      const path = key.trim();
+      // Declare a placeholder for the Vinyl file that will be generated
+      let vinylFile;
+
+      // Get the template referenced by the webProducerKey
+      const template = templates[`${uri.webProducerKey}.hbs`];
+
+      if (template) {
+        // Generate content by merging the pageData into the named Handlebars template
+        const generatedContents = template(uri);
+
+        // Create a new Vinyl object from the generated data
+        vinylFile = vinyl({
+          path,
+          contents: Buffer.from(generatedContents),
+          contentType: mime.getType(path),
+        });
+
+        if (vinylFile.extname === "" || vinylFile.extname === ".html") {
+          // This generated file in HTML and the contents should be minified
+          vinylFile.contents = Buffer.from(
+            htmlMinify(vinylFile.contents.toString(), { collapseWhitespace: true, removeComments: true })
+          );
+          // Force extensionless to HTML mime type
+          vinylFile.contentType = "text/html";
         }
-
-        // Cleanup any accidental whitespace
-        const path = key.trim();
-        // Declare a placeholder for the Vinyl file that will be generated
-        let vinylFile;
-
-        // Get the template referenced by the webProducerKey
-        const template = templates[`${uri.webProducerKey}.hbs`];
-
-        if (template) {
-          // Generate content by merging the pageData into the named Handlebars template
-          const generatedContents = template(uri);
-
-          // Create a new Vinyl object from the generated data
-          vinylFile = vinyl({
-            path,
-            contents: Buffer.from(generatedContents),
-            contentType: mime.getType(path),
-          });
-
-          if (vinylFile.extname === "" || vinylFile.extname === ".html") {
-            // This generated file in HTML and the contents should be minified
-            vinylFile.contents = Buffer.from(
-              htmlMinify(vinylFile.contents.toString(), { collapseWhitespace: true, removeComments: true })
-            );
-            // Force extensionless to HTML mime type
-            vinylFile.contentType = "text/html";
-          }
-        } else if (uri.webProducerKey === "redirect") {
-          // Redirects are pseudo-virtual text files that are not created via a handlebars template
-          vinylFile = vinyl({
-            path,
-            contents: Buffer.from(uri.targetAddress),
-            redirect: 301,
-            // // Note: AWS S3 will convert this to the specific header x-amz-website-redirect-location
-            // targetAddress: uri.targetAddress,
-            contentType: "text/html",
-          });
-        } else {
-          log(`Unexpected condition: page and webProducerKey not found. ${key}, ${uri}`);
-          continue;
-        }
-
-        // Add the vinyl file to the mergeStream
-        mergeStream.push(vinylFile);
+      } else if (uri.webProducerKey === "redirect") {
+        // Redirects are pseudo-virtual text files that are not created via a handlebars template
+        vinylFile = vinyl({
+          path,
+          contents: Buffer.from(uri.targetAddress),
+          redirect: 301,
+          // // Note: AWS S3 will convert this to the specific header x-amz-website-redirect-location
+          // targetAddress: uri.targetAddress,
+          contentType: "text/html",
+        });
+      } else {
+        log(`Unexpected condition: page and webProducerKey not found. ${key}, ${uri}`);
+        continue;
       }
-      // Tell index.js that templates have finished processing
-      resolve("TemplatePipeline: Complete");
-    });
+
+      // Add the vinyl file to the mergeStream
+      mergeStream.push(vinylFile);
+    }
+    // Tell index.js that templates have finished processing
+    // resolve("TemplatePipeline: Complete");
+    return "templates";
+    // });
   }
 
   /**
