@@ -1,24 +1,44 @@
+// System dependencies
+import { Readable } from "stream";
+
 // Third party dependencies
 import { build } from "esbuild";
 
 // Project dependencies
 import { vinyl } from "./Utils.js";
 
-class ScriptsPipeline {
+/**
+ * @description: A Gilbert pipeline that takes in a stream of js files and pipes them through the esbuild bundler for optimisation.
+ * @class ScriptsPipeline
+ */
+export default class ScriptsPipeline {
+  // Private properties
+  #options;
+  #entryPoints;
+
   /**
-   * Creates an instance of TemplatePipeline.
-   * @date 2022-02-11
+   * Creates an instance of ScriptsPipeline.
    * @param {object} options: Hash of runtime options
-   * @memberof TemplatePipeline
+   * @memberof ScriptsPipeline
    */
-  constructor(options) {
-    this.options = options;
+  constructor(options, entryPoints) {
+    this.#options = options;
+    this.#entryPoints = entryPoints;
+
+    this.stream = new Readable({
+      objectMode: true,
+      read: function (f) {
+        this.push(null);
+      },
+    });
   }
 
-  async pipeTo(mergeStream, entryPoints) {
+
+
+  async build() {
     try {
       const result = await build({
-        entryPoints,
+        entryPoints: this.#entryPoints,
         outdir: "/",
         bundle: true,
         sourcemap: true,
@@ -29,25 +49,30 @@ class ScriptsPipeline {
         metafile: true,
         treeShaking: true,
       });
+
+      // Iterate through the output files and push them to the mergeStream
       for (const out of result.outputFiles) {
+        // Create a virtual file object
         const v = vinyl({
           path: out.path,
           contents: Buffer.from(out.contents),
         });
-        // Add the file to the (almost) global merge stream
-        mergeStream.push(v);
+
+        // Add the virtual file object to the merge stream
+        this.stream.push(v);
       }
 
-      // TODO: Consider implementing optional stats using a variation of the following line
-      // const text = await esbuild.analyzeMetafile(result.metafile, { verbose: true });
-
-      // Signal to index.js that we have completed
-      return "scripts done";
+      // Return a done message, or additional stats if requested
+      if(this.#options?.stats){
+        return `Scripts: ${JSON.stringify(result.metafile)}`;
+      }else {
+        return `Scripts built`;
+      }
+      
     } catch (err) {
-      console.error(err);
+      console.error("Error in ScriptsPipeline.js", err);
       throw err;
     }
   }
 }
 
-export default ScriptsPipeline;

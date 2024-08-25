@@ -11,7 +11,7 @@ export default class Delme {
         this.push(
           vinyl({
             path: "/abc",
-            contents: Buffer.from("abcdef"),
+            contents: Buffer.from("abcdefx"),
           })
         );
         this.push(null);

@@ -11,6 +11,9 @@ import mime from "mime";
 // and THEN pipe dataStream to themeStream
 
 class TemplatePipeline {
+  // Private properties
+  #options;
+
   /**
    * Creates an instance of TemplatePipeline.
    * @date 2022-02-11
@@ -18,12 +21,11 @@ class TemplatePipeline {
    * @memberof TemplatePipeline
    */
   constructor(options) {
-    this.options = options;
+    this.#options = options;
   }
 
   /**
    * @description: Implements the pipeTo method all our pipelines need to provide
-   * @date 2022-02-05
    * @param {TransformStream} mergeStream:  The (almost) global stream that all incoming streams are eventually merged to.
    * @param {ReadableStream} dataStreamR:   The incoming stream of JSON data that will drive the page creation
    * @param {ReadableStream} themeStreamR:  The incoming stream of handlebars files
@@ -103,7 +105,6 @@ class TemplatePipeline {
 
   /**
    * @description:  Parses out the data as a file from dataStreamR and, compiles all the handlebars templates found in themeStreamR.
-   * @date 2022-02-05
    * @param {ReadableStream} dataStreamR:   The incoming stream of data such as a local file or a remote GraphQL query.
    * @param {ReadableStream} themeStreamR:  The incoming stream of handlebars templates and partials.
    * @return {object}:                      An object containing a data property and a compiled handlebars templates property
