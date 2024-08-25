@@ -1,46 +1,66 @@
 // System dependencies
 import { Writable } from "stream";
+import { Readable } from "stream";
 
 // Third party dependencies
 import handlebars from "handlebars";
 import { minify as htmlMinify } from "html-minifier";
-import { log, streamLog, streamsFinish, vinyl } from "./Utils.js";
+import { log, streamsFinish, vinyl } from "./Utils.js";
 import mime from "mime";
 
-// TODO!!!! 1. Expect dataStream to be type object of individual URI objects; 2. Wait for themeStream to complete loading to memory
-// and THEN pipe dataStream to themeStream
+// TODO: 1. Expect dataStream to be type object of individual URI objects;
+// TODO: 2. Wait for themeStream to complete loading to memory and THEN pipe dataStream to themeStream
 
 class TemplatePipeline {
   // Private properties
   #options;
+  #dataStreamR;
+  #themeStreamR;
 
   /**
    * Creates an instance of TemplatePipeline.
-   * @date 2022-02-11
    * @param {object} options: Hash of runtime options
    * @memberof TemplatePipeline
    */
-  constructor(options) {
+  constructor(options, dataStreamR, themeStreamR) {
     this.#options = options;
+    this.#dataStreamR = dataStreamR;
+    this.#themeStreamR = themeStreamR;
+
+    // Create a new Readable stream as pipable output
+    this.stream = new Readable({
+      objectMode: true,
+      read: function (f) {
+        this.push(null);
+      },
+    });
   }
 
   /**
-   * @description: Implements the pipeTo method all our pipelines need to provide
-   * @param {TransformStream} mergeStream:  The (almost) global stream that all incoming streams are eventually merged to.
-   * @param {ReadableStream} dataStreamR:   The incoming stream of JSON data that will drive the page creation
-   * @param {ReadableStream} themeStreamR:  The incoming stream of handlebars files
-   * @return {Promise}:                     Resolves to indicate completion of this pipeline
-   * @memberof StaticFilesPipeline
+   * @description
+   * @return {stream}:  A steam of Vinyl files
+   * @memberof TemplatePipeline
    */
-  async pipeTo(mergeStream, dataStreamR, themeStreamR) {
-    const { data, templates } = await this.parseFiles(dataStreamR, themeStreamR);
+  async prep() {
+    const { data, templates } = await this.parseFiles();
+    this.data = data;
+    this.templates = templates;
+  }
 
-    // return new Promise((resolve) => {
+  /**
+   * @description: Builds files by combining templates and data
+   * @return {void}:
+   * @memberof TemplatePipeline
+   */
+  build() {
+    const data = this.data;
+    const templates = this.templates;
+
+    // Check for data and exit if non present
     if (!data.uris) {
       const msg = "TemplatePipeline: Empty or missing data.uris.";
-      // No data? No point in trying to create content so immediately resolve().
       console.warn(msg);
-      resolve(msg);
+      throw msg;
     }
 
     handlebars.partials = templates;
@@ -85,7 +105,7 @@ class TemplatePipeline {
           path,
           contents: Buffer.from(uri.targetAddress),
           redirect: 301,
-          // // Note: AWS S3 will convert this to the specific header x-amz-website-redirect-location
+          // Note: AWS S3 will convert this to the specific header x-amz-website-redirect-location
           // targetAddress: uri.targetAddress,
           contentType: "text/html",
         });
@@ -95,30 +115,25 @@ class TemplatePipeline {
       }
 
       // Add the vinyl file to the mergeStream
-      mergeStream.push(vinylFile);
+      this.stream.push(vinylFile);
     }
-    // Tell index.js that templates have finished processing
-    // resolve("TemplatePipeline: Complete");
-    return "templates";
-    // });
   }
 
   /**
    * @description:  Parses out the data as a file from dataStreamR and, compiles all the handlebars templates found in themeStreamR.
-   * @param {ReadableStream} dataStreamR:   The incoming stream of data such as a local file or a remote GraphQL query.
-   * @param {ReadableStream} themeStreamR:  The incoming stream of handlebars templates and partials.
-   * @return {object}:                      An object containing a data property and a compiled handlebars templates property
+   * @return {object}:  An object containing a data property and a compiled handlebars templates property
    * @memberof TemplatePipeline
    */
-  async parseFiles(dataStreamR, themeStreamR) {
-    dataStreamR.id = "dataStreamR";
-    themeStreamR.id = "themeStreamR";
-    streamLog(dataStreamR);
-    streamLog(themeStreamR);
+  async parseFiles() {
+    // Cache the streams to make them easier to reference in this method
+    const dataStreamR = this.#dataStreamR;
+    const themeStreamR = this.#themeStreamR;
 
+    // Declare the in-memory objects to be returned
     const templates = {};
     let data = {};
 
+    // Add event handlers to the streams. Currently empty but kept for possible future use.
     dataStreamR.on("end", () => {});
     themeStreamR.on("end", () => {});
 
@@ -131,9 +146,6 @@ class TemplatePipeline {
         done();
       },
     });
-
-    themeStreamW.id = "themeStreamW";
-    streamLog(themeStreamW);
 
     // Process the data stream to create an in-memory data object
     const dataStreamW = new Writable({
@@ -161,9 +173,6 @@ class TemplatePipeline {
       },
     });
 
-    dataStreamW.id = "dataStreamW";
-    streamLog(dataStreamW);
-
     // Start piping both in parallel
     dataStreamR.pipe(dataStreamW);
     themeStreamR.pipe(themeStreamW);
@@ -174,6 +183,7 @@ class TemplatePipeline {
     // Cleanup
     dataStreamR.unpipe(dataStreamW);
     themeStreamR.unpipe(themeStreamW);
+
     return { data, templates };
   }
 }

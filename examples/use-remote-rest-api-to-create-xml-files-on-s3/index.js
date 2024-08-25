@@ -4,7 +4,6 @@
 const start = new Date();
 
 // Third party dependencies
-import fetch from "node-fetch"; // The native fetch API is available in Node 17.5+ but AWS Lambda runtime only supports v14 LTS.
 import s3 from "vinyl-s3";
 import vfs from "vinyl-fs";
 import WebProducer from "../../src/index.js";

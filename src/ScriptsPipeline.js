@@ -25,6 +25,7 @@ export default class ScriptsPipeline {
     this.#options = options;
     this.#entryPoints = entryPoints;
 
+    // Create a new Readable stream as pipable output
     this.stream = new Readable({
       objectMode: true,
       read: function (f) {
@@ -33,8 +34,11 @@ export default class ScriptsPipeline {
     });
   }
 
-
-
+  /**
+   * @description: Builds the minified JavaScript bundle(s) using esbuild
+   * @return {string}:  Results with optional statistics
+   * @memberof ScriptsPipeline
+   */
   async build() {
     try {
       const result = await build({
@@ -63,16 +67,14 @@ export default class ScriptsPipeline {
       }
 
       // Return a done message, or additional stats if requested
-      if(this.#options?.stats){
+      if (this.#options?.stats) {
         return `Scripts: ${JSON.stringify(result.metafile)}`;
-      }else {
+      } else {
         return `Scripts built`;
       }
-      
     } catch (err) {
       console.error("Error in ScriptsPipeline.js", err);
       throw err;
     }
   }
 }
-

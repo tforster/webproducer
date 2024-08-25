@@ -27,19 +27,18 @@ export default class StylesheetsPipeline {
     this.#options = options;
     this.#entryPoints = entryPoints;
 
+    // Create a new Readable stream as pipable output
     this.stream = new Readable({
       objectMode: true,
       read: function (f) {
-        this.push(null)
+        this.push(null);
       },
-    })    
+    });
   }
 
   /**
-   * @description
-   * @param {*} mergeStream
-   * @param {*} entryPoints
-   * @return {*}  
+   * @description: Builds the minified stylesheet(s) using esbuild
+   * @return {string}:  Results with optional statistics
    * @memberof StylesheetsPipeline
    */
   async build() {
@@ -79,7 +78,7 @@ export default class StylesheetsPipeline {
       }
 
       // Return a done message, or additional stats if requested
-      if(this.#options?.stats){
+      if (this.#options?.stats) {
         return `Stylesheets: ${JSON.stringify(result.metafile)}`;
       } else {
         return `Stylesheets built`;
@@ -100,9 +99,6 @@ export default class StylesheetsPipeline {
     // Only require if we choose to enable auto prefixing
     return postcss([autoprefixer])
       .process(css)
-      .then((result) => {
-        return result.css;
-      });
+      .then((result) => result.css);
   }
 }
-
