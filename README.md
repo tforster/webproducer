@@ -1,4 +1,4 @@
-# Gilber (fka WebProducer) <!-- omit in toc -->
+# Gilbert (fka WebProducer) <!-- omit in toc -->
 
 Gilbert ~~WebProducer~~ is a data-driven tool for highly performant production of websites and web applications.
 
@@ -29,8 +29,9 @@ While Gilbert could be thought of as static site generator it differs in that it
 
 - **Data-driven**: Whereas most static site generators process a tree of page-centric markdown files in the filesystem, Gilbert takes a stream of data and generates content by merging it with in-memory "component" templates. This approach allows Gilbert to be extremely fast and efficient for building content with complex IA needs.
 - **Streams based**: It makes heavy use of readable, writeable and transformation streams allowing for large volumes of content to be processed at high speed with minimal memory requirements. This also makes Gilbert ideal for serverless deployments using AWS Lambda or Azure Cloud Functions.
-  
+
   Since Gilbert consumes and produces streams its behaviour can be easily adapted by transforming the inbound data with a pipe and transforming the outbound data with a pipe. For instance, data could be streamed from a REST API call to a transformation function that restructures the data schema before piping on to Gilbert.
+
 - **Decoupled architecture**: The core of Gilbert is implemented as a reusable NPM module. Since it only accepts and returns streams it can be leveraged for uses cases including:
   - Local web development: It can build a 200+ page site with minified HTML, bundled and minified ES modules, and bundled and minified CSS in well under a second in a moderate workstation
   - Serverless web publishing: Triggered by a webhook from a headless CMS a Gilbert serverless function can query a data endpoint (REST, GraphQL, etc), rebuild and redeploy pages to a production server in about a second.
@@ -54,19 +55,19 @@ For a detailed technical explanation please see the [Developer Guide](./docs/dev
 
 Technically the Gilbert CLI requires no installation as it can be run using npx. However, installing it as a developer dependency will reduce the loading latency.
 
-``` shell
+```shell
 npm install @tforster/webproducer --save-dev
 ```
 
 ### Operation
 
-``` shell
+```shell
 npx webproducer [options]
 ```
 
 Gilbert can run nicely out-of-the-box against an appropriately [structured source tree](#default-directory-structure) it also has lots of configuration options for fine tuning. These can be viewed anytime by typing `npx webproducer -h` which produces the following:
 
-``` shell
+```shell
   -V, --version               output the version number
   -r, --relative-root [root]  The relative root of all the source files (default: "./src")
   -d, --data [data]           Path to the JSON data file. (default: "./src/data/data.json")
@@ -89,10 +90,10 @@ Gilbert provides defaults for all paths that follow the Joy naming structure dev
 
 - **-r, --relative-root**: The relative root of all the source files (default: "./src")
 - **-d, --data**: Path to the JSON data file. (default: "./src/data/data.json")
-- **-t, --theme**: Glob to handlebars files (default: "./src/theme/**/*.hbs")
+- **-t, --theme**: Glob to handlebars files (default: "./src/theme/\*_/_.hbs")
 - **-s, --scripts**: Comma separated list of ES Module entry points -(default: "./src/scripts/main.js")
 - **-c, --css**: Comma separated list of stylesheet entry points -(default: "./src/stylesheets/main.css")
-- **-f, --files**: Comma separated list of static file globs (default: "./src/images/**/*.*")
+- **-f, --files**: Comma separated list of static file globs (default: "./src/images/\*_/_.\*")
 - **-o, --out**: Output directory (default: "./dist")
 
 #### Additional CSS Options
@@ -121,7 +122,7 @@ A couple of options to help get the most out of Gilbert.
 
 WebProducer expects source files to be found in the following tree structure by default, but they can be overridden using various CLI flags.
 
-``` shell
+```shell
 . (your project root)
 └── src
     ├── data
@@ -142,7 +143,7 @@ There are several breaking changes to be aware of when upgrading to v1.0.0.
 
 Pre 1.0.0 saw the URI keys at the top level of the data structure. E.g.
 
-``` JSON
+```JSON
 {
   "/index": { ... },
   "/about": { ... },
@@ -152,8 +153,8 @@ Pre 1.0.0 saw the URI keys at the top level of the data structure. E.g.
 
 For increased legibility these URIs should be moved to the uris property as in:
 
-``` JSON
-{ 
+```JSON
+{
   "uris": {
     "/index": { ... },
     "/about": { ... },
@@ -173,7 +174,7 @@ In addition, the new webProducerKey can accept path separators to align with ric
 
 For example, consider the following data snippet and related themes directory structure:
 
-``` JSON
+```JSON
 {
   "uris": {
     "/admin/reports": {
@@ -184,7 +185,7 @@ For example, consider the following data snippet and related themes directory st
 }
 ```
 
-``` shell
+```shell
 . (your project root)
 └── src
     ├── ...
