@@ -94,7 +94,12 @@ class TemplatePipeline {
         if (vinylFile.extname === "" || vinylFile.extname === ".html") {
           // This generated file in HTML and the contents should be minified
           vinylFile.contents = Buffer.from(
-            htmlMinify(vinylFile.contents.toString(), { collapseWhitespace: true, removeComments: true })
+            htmlMinify(vinylFile.contents.toString(), {
+              collapseWhitespace: true,
+              removeComments: true,
+              minifyCSS: true,
+              minifyJS: true,
+            })
           );
           // Force extensionless to HTML mime type
           vinylFile.contentType = "text/html";

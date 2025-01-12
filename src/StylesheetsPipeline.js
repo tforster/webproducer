@@ -52,7 +52,7 @@ export default class StylesheetsPipeline {
         minify: true,
         write: false,
         metafile: true,
-        loader: { ".eot": "file", ".ttf": "file", ".woff": "file", ".svg": "file" },
+        loader: { ".eot": "file", ".ttf": "dataurl", ".woff": "file", ".svg": "file" },
       });
 
       // Iterate through the output files and push them to the mergeStream

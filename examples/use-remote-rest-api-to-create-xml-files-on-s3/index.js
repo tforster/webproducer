@@ -4,7 +4,9 @@
 const start = new Date();
 
 // Third party dependencies
-import s3 from "vinyl-s3";
+
+// Vinyle S3 has been removed from this project due to high severity vulnerabilities
+// import s3 from "vinyl-s3";
 import vfs from "vinyl-fs";
 import WebProducer from "../../src/index.js";
 

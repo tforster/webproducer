@@ -18,6 +18,7 @@ Gilbert ~~WebProducer~~ is a data-driven tool for highly performant production o
     - [New `uris` Property](#new-uris-property)
     - [`modelName` Change to `webProducerKey`](#modelname-change-to-webproducerkey)
 - [API](#api)
+- [Known Issues](#known-issues)
 - [Change Log](#change-log)
 - [Code of Conduct](#code-of-conduct)
 - [Contributing](#contributing)
@@ -202,6 +203,12 @@ For example, consider the following data snippet and related themes directory st
 See how easy Gilbert's simple streams API is with [Use Remote REST API to Create XML files on S3](./examples/use-remote-rest-api-to-create-xml-files-on-s3/README.md). Or check out the [examples](./examples/README.md) directory for others.
 
 Full API details are coming in the [Developer Guide](/docs/developer-guide.md).
+
+## Known Issues
+
+npm audit reports a high severity vulnerability in the html-minifier package. The advisory link is https://github.com/kangax/html-minifier/issues/1135. While the issue is still outstanding the use of Gilbert is typically constrained to developer workstations and CI/CD instances. It is not used directly in production systems. As such the risk is considered low. However, please use your own judgement and risk assessment.
+
+I will be looking to replace html-minifier with a more secure package in the near future.
 
 ## Change Log
 
