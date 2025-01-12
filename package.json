@@ -63,7 +63,7 @@
     "url": "git+https://github.com/tforster/webproducer.git"
   },
   "type": "module",
-  "version": "1.0.0-beta.3",
+  "version": "1.0.0-beta.4",
   "files": [
     "/src",
     "/scripts"
