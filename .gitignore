@@ -1,9 +1,7 @@
 ### Project ###
 build
 dist
-.vscode
 .env
-.serverless
 stack
 test
 

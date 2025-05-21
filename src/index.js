@@ -1,266 +1,155 @@
-/* eslint-disable no-restricted-syntax */
-("use strict");
+// System dependencies
+import { Transform } from "stream";
 
-// Third party dependencies (Typically found in public NPM packages)
-const cleanCSS = require("gulp-clean-css");
-const concat = require('gulp-concat')
-const minifyHtml = require("gulp-htmlmin");
-const sourcemaps = require("gulp-sourcemaps");
-const terser = require("gulp-terser");
-const vfs = require("vinyl-fs");
+// Third party dependencies
+import mime from "mime";
 
 // Project dependencies
-const CloudFront = require("./CloudFront");
-const Config = require("./Config");
-const DataSource = require("./DataSource");
-const MergeStream = require("./MergeStream");
-const StreamUtils = require("./StreamUtils");
-const Utils = require("./Utils");
-const vs3 = require("./S3FileAdapter");
-const PageBuilder = require("./PageBuilder");
+import StaticFilesPipeline from "./StaticFilesPipeline.js";
+import ScriptsPipeline from "./ScriptsPipeline.js";
+import StylesheetsPipeline from "./StylesheetsPipeline.js";
+import TemplatePipeline from "./TemplatePipeline.js";
+
+// Crude global exception handler
+process.on("uncaughtException", (err) => {
+  console.error("Uncaught Exception", err);
+});
 
 /**
- * Website and web-app agnostic class implementing a "build" process that merges handlebars templates with JSON data to produce
- * static output.
- * @class WebProducer
+ * @description: The entry point of the Gilbert compiler engine
+ * @class Gilbert
  */
-class WebProducer {
-  /**
-   *Creates an instance of WebProducer.
-   * @param {string} configPathOrString:  String of YAML or path to a YAML file containing configuration settings
-   * @memberof WebProducer
-   */
-  constructor(configPathOrString, TransformModule, globs) {
-    this.startTime = new Date();
-    console.log(`${new Date().toISOString()}> WebProducer started`);
-
-    // set the configuration after parsing the config YAML or file pointing to YAML
-    try {
-      this.config = Config.getConfig(configPathOrString);
-    } catch (err) {
-      // If we don't have config there's no point in continuing
-      throw new Error("Could not find any configuration");
-    }
-
-    // Vinylise the template data
-    if (typeof this.config.templates === "string") {
-      // Deserialise config.data from an alias
-      this.config.templates = this.config[this.config.templates];
-    }
-    this.src = Utils.vinylise(this.config.templates);
-    console.log(`${new Date().toISOString()}> Templates:   ${this.config.templates.base}`);
-
-    // Vinylise the destination data
-    if (typeof this.config.destination === "string") {
-      // Deserialise config.data from an alias
-      this.config.destination = this.config[this.config.destination];
-    }
-    this.dest = Utils.vinylise(this.config.destination);
-    console.log(`${new Date().toISOString()}> Destination: ${this.config.destination.base}`);
-
-    // Setup data object describing data and meta sources
-    this.data = this._getDataSource(this.config.templates);
-
-    if (TransformModule) {
-      this.data.TransformModule = TransformModule;
-    }
-
-    console.log(
-      `${new Date().toISOString()}> Data:        ${this.data.endpoint ? this.data.endpoint.base + "/data" : this.data.path + "/data"
-      }`
-    );
-    console.log(`${new Date().toISOString()}> Meta:        ${this.data.path + "/data/meta"}`);
-    if (!globs) {
-      this.globs = {
-        styles: {
-          "/styles.min.css": ["/**/*.css"],
-        },
-        scripts: {
-          "/main.min.js": ["/**/*.js"],
-        },
-      }
-    } else {
-      this.globs = globs;
-    }
-  }
+class Gilbert {
+  // Private properties
+  #options;
+  #pipeCounter;
 
   /**
-   * @returns {object}:       A definition of the data and meta sources including any properties necessary to access S3, FS, GQL...
-   * @memberof WebProducer
+   * Creates an instance of Gilbert.
+   * @date 2024-08-25
+   * @param {object} options: Hash of runtime options including the relative root of the project and the debug flag.
+   * @memberof Gilbert
    */
-  _getDataSource(templates) {
-    const config = this.config;
+  constructor(options) {
+    // .produce was renamed to .compile. This is a temporary alias to maintain backwards compatibility.
+    this.produce = this.compile;
 
-    // Data default path and meta always come from templates location. E.g. /data and /data/meta
-    const dataSource = {
-      type: templates.type,
-      path: templates.base,
-      region: templates.region,
-    };
+    // Initialise private properties
+    this.#pipeCounter = 0;
+    this.#options = options;
 
-    // If config.data is specified then it must be an endpoint such as GraphQL or REST
-    if (config.data) {
-      // First, deserialise config.data is an alias to an actual config.data object
-      if (typeof config.data === "string") {
-        // Deserialise config.data from an alias
-        config.data = config[config.data];
-      }
-      dataSource.endpoint = config.data;
-      //dataSource.endpoint = config.data;
-    }
+    // Public properties exposed to the calling application
+    this.resources = 0;
+    this.size = 0;
 
-    return dataSource;
-  }
-
-  /**
-   * Determines and instantiates the correct Vinyl FS or S3 stream objects to handle input and output
-   * @returns {object}: An object containing the source and destination stream objects
-   * @memberof WebProducer
-   */
-  _prepareStreams() {
-    // Set the sourceStream to either a VinylFS or Vinyl-S3 stream
-    const srcStreamReadable = this.src.type === "s3" ? new vs3(this.src) : vfs;
-
-    // Set the readable and writable destination streams to either a VinylFS or Vinyl-S3 stream
-    let destStreamWritable;
-    // Read the contents of the destination pre-deployment so we can calculate a diff and only deploy changed files
-    let destStreamReadable;
-
-    if (this.dest.type === "s3") {
-      destStreamWritable = vs3.dest(this.dest);
-      destStreamReadable = new vs3(this.dest).src(this.dest.path + "**/*", true); // Remember, S3 doesn't use a leading slash
-    } else {
-      destStreamWritable = vfs.dest(this.dest.path);
-      destStreamReadable = vfs.src(this.dest.path + "/**/*");
-    }
-
-    // Return the three streams ready for use
-    return { srcStreamReadable, destStreamWritable, destStreamReadable };
-  }
-
-  /**
-   * Entry point into WebProducer
-   *
-   * @param {object} options: Additional options typically passed at runtime to temporarily alter the behaviour of WebProducer
-   *                          - dataSnapshot:   Save retrieved data to the current data meta path as data.json
-   * @memberof WebProducer
-   */
-  async main(options) {
-    // Shortcut to access config
-    const config = this.config;
-
-    // Set debugTransform true to be passed into dynamically loaded Transform module to enable breakpoint debugging
-    this.data.debugTransform = options.debugTransform;
-    // Set snapshot true to save the retrieved data (usually via GraphQL) to the current data meta path
-    this.data.snapshot = options.snapshot;
-
-    // Instantiate various classes
-    const pageBuilder = new PageBuilder();
-    const streamUtils = new StreamUtils();
-
-    // Setup the FS and/or S3 streams for retrieving and uploading content
-    const { srcStreamReadable, destStreamWritable, destStreamReadable } = this._prepareStreams();
-
-    // Start getting file meta from dest as a Promise that can be deferred until after the build process
-    const destinationFilesParsed = streamUtils.parseDestinationFiles(destStreamReadable);
-
-    // Template source is expected to be in a stage specific and lower cased subfolder, eg, /dev, /stage or /prod
-    const srcRoot = this.src.base;
-
-    try {
-      // Parallelise fetching data from API, precompiling templates and all from async stream reading
-      var [siteData, _] = await Promise.all([
-        // Wait for our data source to return from any remote retrieval, database queries and transformations
-        await DataSource.data(this.data),
-        // Precompile all .hbs templates into the vhandlebars object from the stream
-        pageBuilder.precompile(srcStreamReadable.src(`${srcRoot}/theme/**/*.hbs`)),
-      ]);
-    } catch (err) {
-      console.error(err);
-    }
-    // Quick check to ensure we have actual data to work with
-    if (!siteData || Object.entries(siteData).length === 0) {
-      throw new Error("No data provided");
-    }
-
-    // Promise.all above resolved with data and precompiled templates from different sources so now we can generate pages.
-    const { htmlStream, fileStream, pages, redirects, files } = await pageBuilder.build(siteData);
-    fileStream.name = "fileStream";
-    // Merge our streams containing loose files, concatenated scripts, concatenated css and generated HTML into one main stream
-
-    // TODO: Make name a parameter than can be passed in on the .src() method for cleaner code here. Has to work with vFS and vS3.
-
-    // Loose files are all non-transformable resources like fonts, robots.txt, etc. Note that we ignore db, scripts, theme, etc.
-    const looseFiles = srcStreamReadable.src([
-      `${srcRoot}/**/*.*`,
-      `!${srcRoot}/data/**`,
-      `!${srcRoot}/**/*.js`,
-      `!${srcRoot}/**/*.css`,
-      `!${srcRoot}/theme/**`,
-    ]);
-    looseFiles.name = "looseFiles";
-
-    // We ignored scripts above as they require unique handling here
-    const scriptStreams = Object.keys(this.globs.scripts).map(key => {
-      let scriptStream = srcStreamReadable.src(`${srcRoot}${this.globs.scripts[key]}`).pipe(concat(key)).pipe(terser()).pipe(sourcemaps.write("/"));
-      scriptStream.name = key;
-      return scriptStream;
-    })
-
-
-    // We ignored stylesheets above as they require unique handling here
-    const cssStreams = Object.keys(this.globs.styles).map(key => {
-      let cssStream = srcStreamReadable.src(`${srcRoot}${this.globs.styles[key]}`).pipe(cleanCSS()).pipe(concat(key)).pipe(sourcemaps.write("/"));
-      cssStream.name = key;
-      return cssStream;
-    })
-
-    // We ignored the stream of handlebars theme files as they were generated earlier and require additional unique handling here
-    const pagesStream = htmlStream.pipe(minifyHtml({ collapseWhitespace: true, removeComments: true }));
-    pagesStream.name = "pagesStream";
-
-    // Promise for parsing destination files deferred to last moment here to allow for async processing. Note that S3 is a long time
-    await destinationFilesParsed;
-
-    // Merge all the various input streams into one main stream to be parsed
-    const streams = [looseFiles, ...scriptStreams, ...cssStreams, pagesStream, fileStream];
-
-    // MergedStream is new in 0.5.0 and replaces the previous and more complicated Promise-based code block
-    const mergedStream = new MergeStream(streams);
-
-    // Don't move beyond this next block until we know everything hasa been written to the destination
-    await new Promise((resolve) => {
-      // filterDeployableFiles() compares built files to ETags of existing files to determine the change delta to actually deploy.
-      mergedStream.pipe(streamUtils.filterDeployableFiles()).pipe(destStreamWritable);
-
-      destStreamWritable.on("finish", async () => {
-        console.log(`${new Date().toISOString()}> Finished deploying new and updated files.`);
-        resolve();
-      });
+    // Initialise public mergeStream which will aggregate all resources and return to the calling application
+    this.mergeStream = new Transform({
+      objectMode: true,
+      transform: (file, _, done) => {
+        done(null, file);
+      },
     });
 
-    // We want to invalidate ASAP and the risk of the few extra ms here vs deleting files no longer required is ok
-    if (config.destination.cloudFrontDistributionId && streamUtils.destinationUpdates) {
-      // CloudFront requires "/" rooted paths, whereas our paths are not "/" rooted elsewhere in this system
-      streamUtils.destinationUpdates = streamUtils.destinationUpdates.map((path) => `/${path}`);
+    // Housekeeping: Count resources, accumulate the file size and set missing content types.
+    this.mergeStream.on("data", (file) => {
+      // Check for contents before incrementing the size; the stream can emit empty files in the case of directories.
+      if (file.contents) {
+        // Increment the accumulated file size every time we add a new file to the stream
+        this.size += file.contents.length;
+        // Increment the resource counter every time we add a new file to the stream
+        this.resources++;
 
-      const retval = await CloudFront.createInvalidation({
-        distributionId: config.destination.cloudFrontDistributionId,
-        paths: streamUtils.destinationUpdates,
-        region: this.dest.region,
-      });
-      console.log(`${new Date().toISOString()}> Requested CloudFront invalidation: ${retval.Id}.`);
+        // If the file doesn't have a content type (preset only in TemplatePipeline), set it to the default
+        if (!file.contentType) {
+          file.contentType = mime.getType(file.path);
+        }
+      }
+    });
+
+    // Useful for debugging
+    this.mergeStream.on("end", () => {
+      if (this.#options.debug) {
+        console.log(`MergeStream ended: ${this.resources} resources, ${this.size} bytes`);
+      }
+    });
+
+    // Decrement the count of pipes as each stream is unpiped, eventually ending the mergeStream itself
+    this.mergeStream.on("unpipe", (src) => {
+      if (this.#options.debug) {
+        console.log("Unpiping:", src);
+      }
+      this.#pipeCounter--;
+
+      // If we have no more pipes, end the mergeStream
+      if (this.#pipeCounter === 0) {
+        this.mergeStream.end();
+      }
+    });
+  }
+
+  /**
+   * @description: Compiles the contents from the various sources into a single stream.
+   * @param {object} params:  Parameters describing the specifics of the pipelines as provided by the consuming application.
+   * @memberof Gilbert
+   */
+  async compile(params) {
+    // For compiling data and templates, both streams must be present. Graceful degredation means static files can still be parsed.
+    if (params?.uris?.data?.stream && params?.uris?.theme?.stream) {
+      // Increment the pipe counter
+      this.#pipeCounter++;
+
+      // Create a new instance of the TemplatePipeline
+      const templatePipeline = new TemplatePipeline(this.#options, params.uris.data.stream, params.uris.theme.stream);
+      // Prep fetches the data and templates and we need both to be ready before we can build
+      await templatePipeline.prep();
+
+      // Open the stream
+      templatePipeline.stream.pipe(this.mergeStream, { end: false });
+
+      // Start building files into the stream
+      templatePipeline.build();
+
+      if (this.#options.debug) {
+        console.log("Templates parsed");
+      }
     }
 
-    // delete files
-    // TODO: Implement filesystem agnostic deletion class/method. Consider a branched stream?
-    const endTime = new Date();
+    // Static files processing. These just pass through unadulterated.
+    if (params?.files?.stream) {
+      this.#pipeCounter++;
+      params.files.stream.pipe(new StaticFilesPipeline(this.#options)).pipe(this.mergeStream, { end: false });
 
-    console.log(
-      `${new Date().toISOString()}> WebProducer built and deployed: ${pages} pages, ${redirects} redirects and ${files} files in ${endTime - this.startTime
-      }ms.`
-    );
+      if (this.#options.debug) {
+        console.log("Files parsed");
+      }
+    }
+
+    // Scripts processing. Scripts are bundled and minified before being added to the mergeStream.
+    if (params?.scripts?.entryPoints) {
+      this.#pipeCounter++;
+      const scriptsPipeline = new ScriptsPipeline(this.#options, params.scripts.entryPoints);
+      // Building is asynchronous because esbuild has to read from the filesystem :(
+      const results = await scriptsPipeline.build();
+      scriptsPipeline.stream.pipe(this.mergeStream, { end: false });
+
+      if (this.#options.debug) {
+        console.log("Scripts parsed", results);
+      }
+    }
+
+    // Stylesheets processing. Stylesheets are bundled and minified before being added to the mergeStream.
+    if (params?.stylesheets?.entryPoints) {
+      this.#pipeCounter++;
+      const stylesheetsPipeline = new StylesheetsPipeline(this.#options, params.stylesheets.entryPoints);
+      // Building is asynchronous because esbuild has to read from the filesystem :(
+      const results = await stylesheetsPipeline.build();
+      stylesheetsPipeline.stream.pipe(this.mergeStream, { end: false });
+
+      if (this.#options.debug) {
+        console.log("Stylesheets parsed", results);
+      }
+    }
   }
 }
 
-module.exports = WebProducer;
+export default Gilbert;

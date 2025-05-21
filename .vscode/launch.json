@@ -1,0 +1,80 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "pwa-node",
+      "request": "launch",
+      "name": "cli.js",
+      "skipFiles": [
+        "<node_internals>/**"
+      ],
+      "cwd": "/home/tforster/dev/GregHunter/SpaceStation23/www.spacestation23.com/",
+      "program": "${workspaceFolder}/scripts/cli/index.js",
+      "runtimeVersion": "14",
+      "args": [
+        "--transform",
+        "cliTransform.js"
+      ]
+    },
+    {
+      "type": "pwa-node",
+      "request": "launch",
+      "name": "app.wazzcards.com",
+      "skipFiles": [
+        "<node_internals>/**"
+      ],
+      "cwd": "/home/tforster/dev/Wazzio/Wazzio/WazzCards/app.wazzcards.com/",
+      "program": "${workspaceFolder}/scripts/cli/index.js",
+      "runtimeVersion": "14",
+      "args": [
+        "-d",
+        "./src/data/content.json",
+        "-t",
+        "./src/elements/**/*.hbs",
+        "-c",
+        "./src/stylesheets/jake.css"
+      ]
+    },
+    {
+      "type": "pwa-node",
+      "request": "launch",
+      "name": "use-remote-rest-api-to-create-xml-files-on-s3",
+      "skipFiles": [
+        "<node_internals>/**"
+      ],
+      "cwd": "${workspaceFolder}/examples/use-remote-rest-api-to-create-xml-files-on-s3",
+      "program": "${workspaceFolder}/examples/use-remote-rest-api-to-create-xml-files-on-s3/index.js",
+      "runtimeVersion": "14",
+      "args": [
+        "--transform",
+        "cliTransform.js"
+      ]
+    },
+    {
+      "type": "pwa-node",
+      "request": "launch",
+      "name": "CLI",
+      "skipFiles": [
+        "<node_internals>/**"
+      ],
+      "program": "${workspaceFolder}/src/index.js",
+      "runtimeVersion": "14",
+      "args": [
+        "--transform",
+        "cliTransform.js"
+      ]
+    },
+    {
+      "type": "pwa-node",
+      "request": "launch",
+      "name": "Commander",
+      "skipFiles": [
+        "<node_internals>/**"
+      ],
+      "cwd": "${workspaceFolder}/tests",
+      "program": "${workspaceFolder}/tests/cli.js",
+      "runtimeVersion": "14",
+      "args": []
+    }
+  ]
+}
