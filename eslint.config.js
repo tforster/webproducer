@@ -1,14 +1,16 @@
-import globals from "globals";
-import js from "@eslint/js";
-import { fixupPluginRules } from "@eslint/compat";
-
-// Plugins
 import _import from "eslint-plugin-import";
+import { fixupPluginRules } from "@eslint/compat";
 import eslintPluginPrettierRecommended from "eslint-plugin-prettier/recommended";
-import markdown from "@eslint/markdown";
+import globals from "globals";
+import html from "@html-eslint/eslint-plugin";
+import js from "@eslint/js";
 import json from "@eslint/json";
-import html from "eslint-plugin-html";
+import jsonc from "eslint-plugin-jsonc";
+import jsoncParser from "jsonc-eslint-parser";
+import markdown from "@eslint/markdown";
 import node from "eslint-plugin-node";
+import yamlParser from "yaml-eslint-parser";
+import yml from "eslint-plugin-yml";
 
 export default [
   js.configs.recommended,
@@ -43,14 +45,14 @@ export default [
       "no-undef": "error",
       "class-methods-use-this": "off",
       "no-throw-literal": "off",
-      "no-debugger": 0,
-      "no-alert": 0,
-      "no-await-in-loop": 0,
+      "no-debugger": "warn",
+      "no-alert": "warn",
+      "no-await-in-loop": "off",
       "no-return-assign": ["error", "except-parens"],
-      "no-restricted-syntax": [2, "ForInStatement", "LabeledStatement", "WithStatement"],
-      "no-unreachable": [0],
+      "no-restricted-syntax": ["error", "ForInStatement", "LabeledStatement", "WithStatement"],
+      "no-unreachable": "warn",
       "no-unused-vars": [
-        1,
+        "warn",
         {
           ignoreRestSiblings: true,
           argsIgnorePattern: "res|next|^err",
@@ -62,37 +64,37 @@ export default [
           destructuring: "all",
         },
       ],
-      "arrow-body-style": [2, "as-needed"],
+      "arrow-body-style": ["error", "as-needed"],
       "no-unused-expressions": [
-        2,
+        "error",
         {
           allowTaggedTemplates: true,
         },
       ],
-      "no-const-assign": 0,
+      "no-const-assign": "warn",
       "no-param-reassign": "off",
-      "no-console": 1,
+      "no-console": "warn",
 
-      "space-before-function-paren": 0,
-      "comma-dangle": 0,
+      "space-before-function-paren": "off",
+      "comma-dangle": "off",
       "max-len": [
         "error",
         {
           code: 132,
         },
       ],
-      "no-underscore-dangle": 0,
-      "consistent-return": 0,
-      radix: 0,
+      "no-underscore-dangle": "off",
+      "consistent-return": "off",
+      radix: "warn",
       "no-shadow": [
-        2,
+        "error",
         {
           hoist: "all",
           allow: ["resolve", "reject", "done", "next", "err", "error"],
         },
       ],
       quotes: [
-        2,
+        "error",
         "double",
         {
           avoidEscape: true,
@@ -100,23 +102,28 @@ export default [
         },
       ],
     },
-    "import/extensions": [
-      "error",
-      "ignorePackages", // This ignores extensions for packages
-      {
-        js: "never",
-        jsx: "never",
-        ts: "never",
-        tsx: "never",
-        json: "always", // Add this to allow JSON extensions
-      },
-    ],
   },
   {
     name: "html",
-    files: ["**/*.html"],
+    ...html.configs["flat/recommended"],
+    files: ["**/*.html", "**/*.hbs"],
     plugins: {
       html,
+    },
+    language: "html/html",
+    languageOptions: {
+      // This tells the parser to treat {{ ... }} as template syntax,
+      // so it won’t try to parse contents inside as regular HTML
+      templateEngineSyntax: {
+        "{{": "}}",
+      },
+    },
+    rules: {
+      "html/indent": ["error", 2],
+      "html/quotes": ["error", "double"],
+      "html/no-self-closing": "off",
+      "html/no-mixed-html": "off",
+      "html/require-img-alt": "error",
     },
   },
   {
@@ -130,6 +137,40 @@ export default [
       "markdown/no-html": "error",
       "markdown/heading-increment": "error",
       "markdown/fenced-code-language": "error",
+    },
+  },
+  // Added for JSONC
+  {
+    name: "jsonc",
+    files: ["**/*.jsonc", "**/tsconfig.json", "**/.vscode/**.json"],
+    languageOptions: {
+      parser: jsoncParser,
+    },
+    plugins: {
+      jsonc,
+    },
+    rules: {
+      ...jsonc.configs.base.overrides[0].rules, // Base rules
+      ...jsonc.configs["recommended-with-jsonc"].rules, // Recommended JSONC rules
+      // Add/override specific JSONC rules here if needed
+      // e.g., "jsonc/sort-keys": "error"
+    },
+  },
+  // Added for YAML
+  {
+    name: "yaml",
+    files: ["**/*.yaml", "**/*.yml"],
+    languageOptions: {
+      parser: yamlParser,
+    },
+    plugins: {
+      yml,
+    },
+    rules: {
+      ...yml.configs.base.overrides[0].rules, // Base rules
+      ...yml.configs.standard.rules, // Standard YAML rules (includes recommended)
+      // Add/override specific YAML rules here if needed
+      // e.g., "yml/quotes": ["error", { "prefer": "single" }]
     },
   },
 ];

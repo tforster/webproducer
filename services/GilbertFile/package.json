@@ -1,7 +1,9 @@
 {
   "author": "Troy Forster <troy.forster@gmail.com> (http://www.tforster.com/)",
+  "dependencies": {
+    "mime": "^4.0.7"
+  },
   "description": "Virtual file format for Gilbert",
-  "devDependencies": {},
   "license": "MIT",
   "main": "index.js",
   "name": "@tforster/gilbert-file",

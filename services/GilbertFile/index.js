@@ -31,10 +31,11 @@ class GilbertFile {
    * @param {Object} [options={ base, cwd, path, contents, stat: null }]
    * @memberof GilbertFile
    */
-  constructor(options = { base: null, cwd: null, path: null, contents: null, stat: {} }) {
+  constructor(options = {}) {
     // Merge default options with provided options
     options = { ...{ base: null, cwd: null, path: null, contents: null, stat: {} }, ...options };
 
+    // Check path is a string if provided
     if (options.path !== null && typeof options.path !== "string") {
       throw new Error("Path must be a string or null.");
     }
@@ -42,6 +43,7 @@ class GilbertFile {
     // Initialise private fields
     this.#cwd = options.cwd || process.cwd();
     this.#base = path.resolve(this.#cwd, options.base || this.#cwd);
+
     // Resolve path if it's a string, otherwise use options.path (e.g., null)
     this.#path = typeof options.path === "string" ? path.resolve(this.#cwd, options.path) : options.path;
     this.#stat = options.stat;
