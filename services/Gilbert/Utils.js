@@ -1,6 +1,6 @@
 // Third party dependencies
 // import Vinyl from "vinyl";
-import GilbertFile from "/home/tforster/dev/TechSmarts/WebProducer/Gilbert/services/GilbertFile/index.js";
+import GilbertFile from "./GilbertFile/index.js";
 
 class Utils {
   /**
