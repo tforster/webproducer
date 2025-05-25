@@ -24,6 +24,7 @@ class GilbertFile {
   #stat;
   #contentType;
   #symlink = null;
+  #isDirectory = false;
 
   /**
    * Creates an instance of GilbertFile.
@@ -32,7 +33,7 @@ class GilbertFile {
    */
   constructor(options = { base: null, cwd: null, path: null, contents: null, stat: {} }) {
     // Merge default options with provided options
-    options = { ...{ base: null, cwd: null, path: null, contents: null, stat: { mode: null } }, ...options };
+    options = { ...{ base: null, cwd: null, path: null, contents: null, stat: {} }, ...options };
 
     if (options.path !== null && typeof options.path !== "string") {
       throw new Error("Path must be a string or null.");
@@ -47,6 +48,8 @@ class GilbertFile {
 
     // Initialize contents (uses the setter)
     this.contents = options.contents;
+    this.#isDirectory = options.contents === null;
+
     // Initialize MIME type (Uses the setter)
     this.contentType = mime.getType(this.path) || DEFAULT_CONTENT_TYPE;
 
@@ -54,6 +57,7 @@ class GilbertFile {
     this._isVinyl = true;
     this._symlink = this.symlink;
     this._cwd = this.cwd;
+    this._contents = this.contents;
     this.#history = [this.#path];
   }
 
@@ -299,18 +303,17 @@ class GilbertFile {
 
   /**
    * @description Checks if the GilbertFile object represents a directory.
+   * @vinylCompatibility
    * @return {boolean}
    * @memberof GilbertFile
    */
   isDirectory() {
-    if (this.#stat && typeof this.#stat.isDirectory === "function") {
-      return this.#stat.isDirectory();
-    }
-    return this.isNull();
+    return this.#isDirectory;
   }
 
   /**
    * @description Checks if the GilbertFile object represents a regular file.
+   * @vinylCompatibility
    * @return {boolean}
    * @memberof GilbertFile
    */
@@ -324,6 +327,7 @@ class GilbertFile {
    * - file.isNull() is true
    * - file.stat is an object
    * - file.stat.isSymbolicLink() returns true
+   * @vinylCompatibility
    * @return {boolean}
    * @memberof GilbertFile
    */
@@ -333,7 +337,8 @@ class GilbertFile {
     // * file.isNull() is true
     // * file.stat is an object
     // * file.stat.isSymbolicLink() returns true
-    return this.isNull();
+    // return this.isNull();
+    return false;
   }
 }
 

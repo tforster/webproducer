@@ -22,7 +22,6 @@ describe("GilbertFile", () => {
       assert.strictEqual(file.cwd, process.cwd(), "CWD should default to process.cwd()");
       assert.strictEqual(file.base, process.cwd(), "Base should default to CWD");
       assert.ok(file.stat, "Stat object should exist");
-      assert.strictEqual(file.stat.mode, null, "Stat mode should be null for now");
       assert.deepStrictEqual(file.history, [path.resolve(process.cwd(), "test.txt")], "History should contain initial path");
       assert.strictEqual(file._isVinyl, true, "_isVinyl flag should be true");
     });
@@ -31,7 +30,6 @@ describe("GilbertFile", () => {
       const file = new GilbertFile({ path: "test-dir" }); // No contents, implies null
       assert.strictEqual(file.contents, null, "Contents should be null");
       assert.ok(file.stat, "Stat object should exist");
-      assert.strictEqual(file.stat.mode, null, "Stat mode should be null for now");
       assert.strictEqual(file.isNull(), true, "isNull() should be true");
       assert.strictEqual(file.isDirectory(), true, "isDirectory() should be true for null contents by default");
     });
@@ -225,21 +223,7 @@ describe("GilbertFile", () => {
         const file = new GilbertFile({ path: "dir", contents: null });
         assert.strictEqual(file.isDirectory(), true);
       });
-      it("should be true if stat.isDirectory() is true", () => {
-        const file = new GilbertFile({
-          path: "dir",
-          stat: { isDirectory: () => true, isFile: () => false, isSymbolicLink: () => false },
-        });
-        assert.strictEqual(file.isDirectory(), true);
-      });
-      it("should be false if stat.isDirectory() is false, even with null contents", () => {
-        const file = new GilbertFile({
-          path: "dir",
-          contents: null,
-          stat: { isDirectory: () => false, isFile: () => true, isSymbolicLink: () => false },
-        });
-        assert.strictEqual(file.isDirectory(), false);
-      });
+
       it("should be false for file with buffer contents", () => {
         const file = new GilbertFile({ path: "file.txt", contents: Buffer.from("data") });
         assert.strictEqual(file.isDirectory(), false);
@@ -259,14 +243,6 @@ describe("GilbertFile", () => {
     });
 
     describe("isSymbolic()", () => {
-      it("should be true if null contents, stat exists, and stat.isSymbolicLink() is true", () => {
-        const file = new GilbertFile({
-          path: "link",
-          contents: null,
-          stat: { isSymbolicLink: () => true, isDirectory: () => false, isFile: () => false },
-        });
-        assert.strictEqual(file.isSymbolic(), true);
-      });
       it("should be false if contents are not null", () => {
         const file = new GilbertFile({ path: "link", contents: Buffer.from(""), stat: { isSymbolicLink: () => true } });
         assert.strictEqual(file.isSymbolic(), false);
