@@ -1,7 +1,6 @@
 // System imports
 import path from "node:path";
 import { Buffer } from "node:buffer";
-import { Readable } from "node:stream";
 
 // Third-party imports
 import mime from "mime";

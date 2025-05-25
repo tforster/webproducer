@@ -40,13 +40,15 @@ class Utils {
         )
       );
     } catch (err) {
-      console.error("errx", err);
+      // eslint-disable-next-line no-console
+      console.error("error", err);
     }
   }
 
   static log(msg) {
     // eslint-disable-next-line no-constant-condition
     if (true) {
+      // eslint-disable-next-line no-console
       console.log(msg);
     }
   }
