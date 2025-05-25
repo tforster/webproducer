@@ -6,15 +6,6 @@
   "bugs": {
     "url": "https://github.com/tforster/webproducer/issues"
   },
-  "dependencies": {
-    "autoprefixer": "^10.4.20",
-    "esbuild": "^0.24.2",
-    "handlebars": "^4.7.8",
-    "html-minifier": "^4.0.0",
-    "mime": "^4.0.6",
-    "postcss": "^8.4.49",
-    "vinyl": "3.0.0"
-  },
   "description": "WebProducer, or simply WP, is a serverless application for publishing content to the web. It equally supports websites and web applications with a lean, streams based, architecture.",
   "devDependencies": {
     "@eslint/compat": "^1.2.5",
@@ -57,7 +48,8 @@
   ],
   "license": "MIT",
   "main": "src/index.js",
-  "name": "@tforster/webproducer",
+  "name": "@tforster/webproducer-monorepo",
+  "private": true,
   "repository": {
     "type": "git",
     "url": "git+https://github.com/tforster/webproducer.git"
@@ -74,5 +66,9 @@
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
-  }
+  },
+  "workspaces": [
+    "services/GilbertFile",
+    "services/Gilbert"
+  ]
 }

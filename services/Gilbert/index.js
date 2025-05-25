@@ -68,9 +68,9 @@ class Gilbert {
 
     // Useful for debugging
     this.mergeStream.on("end", () => {
-      if (this.#options.debug) {
-        console.log(`MergeStream ended: ${this.resources} resources, ${this.size} bytes`);
-      }
+      // if (this.#options.debug) {
+      console.log(`MergeStream ended: ${this.resources} resources, ${this.size} bytes`);
+      // }
     });
 
     // Decrement the count of pipes as each stream is unpiped, eventually ending the mergeStream itself
