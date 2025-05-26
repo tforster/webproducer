@@ -84,7 +84,7 @@ class GilbertFile {
     // Update base and path based on new cwd
     this.#base = path.resolve(val, this.#base);
     if (this.#path) {
-      this.#path = path.resolve(val, this.#path);
+      this.#path = path.relative(val, this.#path);
     }
 
     this.#cwd = val;
