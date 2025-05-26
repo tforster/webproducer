@@ -1,13 +1,12 @@
 // Third party dependencies
-// import Vinyl from "vinyl";
-import GilbertFile from "./GilbertFile/index.js";
+import GilbertFile from "@tforster/gilbert-file";
 
 class Utils {
   /**
-   * @description: Lightweight wrapper around the Vinyl constructor for simplicity and consistency.
+   * @description: Lightweight wrapper around the GilbertFile constructor for simplicity and consistency.
    * @static
    * @param {object} options: Typical Vinyl params such as path and contents
-   * @return {object}             A new Vinyl object
+   * @return {object}             A new GilbertFile object
    * @memberof Utils
    */
   static vinyl(options) {
