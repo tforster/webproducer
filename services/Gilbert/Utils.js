@@ -1,18 +1,18 @@
 // Third party dependencies
-import Vinyl from "vinyl";
+import GilbertFile from "@tforster/gilbert-file";
 
 class Utils {
   /**
-   * @description: Lightweight wrapper around the Vinyl constructor for simplicity and consistency.
+   * @description: Lightweight wrapper around the GilbertFile constructor for simplicity and consistency.
    * @static
-   * @param {object} vinylParams: Typical Vinyl params such as path and contents
-   * @return {object}             A new Vinyl object
+   * @param {object} options: Typical Vinyl params such as path and contents
+   * @return {object}             A new GilbertFile object
    * @memberof Utils
    */
-  static vinyl(vinylParams) {
+  static vinyl(options) {
     // Force cwd to (virtual) root as it makes it MUCH easier to work with and debug
-    vinylParams.cwd = vinylParams.cwd || "/";
-    return new Vinyl(vinylParams);
+    options.cwd = options.cwd || "/";
+    return new GilbertFile(options);
   }
 
   /**
@@ -39,13 +39,15 @@ class Utils {
         )
       );
     } catch (err) {
-      console.error("errx", err);
+      // eslint-disable-next-line no-console
+      console.error("error", err);
     }
   }
 
   static log(msg) {
     // eslint-disable-next-line no-constant-condition
     if (true) {
+      // eslint-disable-next-line no-console
       console.log(msg);
     }
   }
