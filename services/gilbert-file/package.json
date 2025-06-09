@@ -4,8 +4,14 @@
     "mime": "^4.0.7"
   },
   "description": "Virtual file format for Gilbert",
+  "exports": {
+    ".": "./lib/index.js"
+  },
+  "files": [
+    "lib/"
+  ],
   "license": "MIT",
-  "main": "index.js",
+  "main": "lib/index.js",
   "name": "@tforster/gilbert-file",
   "repository": {
     "type": "git",

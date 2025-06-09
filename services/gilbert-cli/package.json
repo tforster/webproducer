@@ -3,8 +3,8 @@
     "webproducer": "./cli.js"
   },
   "dependencies": {
-    "@tforster/gilbert": "workspace:^",
     "commander": "^14.0.0",
+    "gilbert": "@tforster/gilbert@1.0.0-beta.5",
     "vinyl-fs": "4.0.0"
   },
   "name": "@tforster/gilbert-cli",

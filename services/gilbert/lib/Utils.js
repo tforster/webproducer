@@ -1,5 +1,5 @@
 // Third party dependencies
-import GilbertFile from "../../gilbert-file";
+import GilbertFile from "@tforster/gilbert-file";
 
 class Utils {
   /**
