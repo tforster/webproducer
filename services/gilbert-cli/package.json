@@ -1,0 +1,14 @@
+{
+  "bin": {
+    "webproducer": "./cli.js"
+  },
+  "dependencies": {
+    "@tforster/gilbert": "workspace:^",
+    "commander": "^14.0.0",
+    "vinyl-fs": "4.0.0"
+  },
+  "name": "@tforster/gilbert-cli",
+  "private": true,
+  "type": "module",
+  "version": "1.0.0"
+}

@@ -16,5 +16,5 @@
     "test:watch": "node --test --watch tests/**/*.test.js"
   },
   "type": "module",
-  "version": "0.1.0"
+  "version": "1.0.0-beta.6"
 }
