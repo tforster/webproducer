@@ -12,7 +12,8 @@ import { Command } from "commander";
 import vfs from "vinyl-fs";
 
 // Project dependencies
-import WebProducer from "../../src/index.js";
+// import WebProducer from "../../src/index.js";
+import Gilbert from "@tforster/gilbert";
 
 // Trap and log (in detail) any uncaught exceptions so they can be properly accounted for later.
 process.on("uncaughtException", (err) => {
@@ -89,7 +90,7 @@ let customPipelines = 0;
     }
 
     // Create a new instance of WebProducer
-    const webproducer = new WebProducer(options);
+    const webproducer = new Gilbert(options);
 
     // Initialise the destination
     const dest = vfs.dest(options.out);

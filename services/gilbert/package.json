@@ -1,33 +1,41 @@
 {
   "author": "Troy Forster <troy.forster@gmail.com> (http://www.tforster.com/)",
   "bugs": {
-    "url": "https://github.com/tforster/webproducer/issues"
+    "url": "  https://github.com/tforster/webproducer/issues"
   },
   "dependencies": {
-    "@tforster/gilbert-file": "services/GilbertFile:0.1.0",
     "autoprefixer": "^10.4.20",
-    "esbuild": "^0.24.2",
+    "esbuild": "^0.25.0",
+    "gilbert-file": "@tforster/gilbert-file@1.0.0-beta.5",
     "handlebars": "^4.7.8",
     "html-minifier": "^4.0.0",
     "mime": "^4.0.6",
+    "minimatch": "^10.0.1",
     "postcss": "^8.4.49"
   },
   "description": "",
-  "devDependencies": {},
+  "exports": {
+    ".": "./lib/index.js"
+  },
+  "files": [
+    "lib/"
+  ],
   "homepage": "https://github.com/tforster/webproducer#readme",
   "keywords": [
     "gilbert",
-    "text",
     "text",
     "file",
     "compiler",
     "static",
     "site",
-    "generator"
+    "generator",
+    "webproducer"
   ],
   "license": "MIT",
-  "main": "index.js",
-  "name": "@tforster/webproducer",
+  "name": "@tforster/gilbert",
+  "publishConfig": {
+    "access": "public"
+  },
   "repository": {
     "type": "git",
     "url": "git+ssh://git@github.com/tforster/webproducer.git"
@@ -36,5 +44,5 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "type": "module",
-  "version": "0.1.0"
+  "version": "1.0.0-beta.5"
 }
