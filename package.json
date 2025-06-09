@@ -40,7 +40,7 @@
     "url": "git+https://github.com/tforster/webproducer.git"
   },
   "type": "module",
-  "version": "1.0.0-beta.6",
+  "version": "1.0.0-beta.5",
   "workspaces": [
     "services/gilbert-cli",
     "services/gilbert-file",
