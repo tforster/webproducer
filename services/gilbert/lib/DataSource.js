@@ -79,7 +79,7 @@ class DataSource {
     }
 
     // Final check to ensure we have data
-    if (Object.keys(data).length === 0) {
+    if (!data || (typeof data === 'object' && Object.keys(data).length === 0)) {
       throw new Error("Data not found.");
     }
 
