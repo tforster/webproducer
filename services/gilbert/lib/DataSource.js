@@ -6,7 +6,7 @@ const vfs = require("vinyl-fs");
 
 // Project dependencies
 const GraphQLDataAdapter = require("./GraphQLDataAdapter");
-const Utils = require("../Utils");
+const Utils = require("./Utils");
 const s3FileAdapter = require("./S3FileAdapter");
 
 /**
