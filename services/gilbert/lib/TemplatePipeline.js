@@ -13,7 +13,6 @@ import mime from "mime";
 
 class TemplatePipeline {
   // Private properties
-  #options;
   #dataStreamR;
   #themeStreamR;
 
@@ -23,7 +22,6 @@ class TemplatePipeline {
    * @memberof TemplatePipeline
    */
   constructor(options, dataStreamR, themeStreamR) {
-    this.#options = options;
     this.#dataStreamR = dataStreamR;
     this.#themeStreamR = themeStreamR;
 
@@ -88,6 +86,8 @@ class TemplatePipeline {
         vinylFile = vinyl({
           path,
           contents: Buffer.from(generatedContents),
+          // TODO: Refactor so this is entirely handled in gilbert-file
+
           contentType: mime.getType(path),
         });
 

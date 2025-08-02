@@ -1,5 +1,3 @@
-("use strict");
-
 // System dependencies (Built in modules)
 const crypto = require("crypto");
 const { Transform, Writable } = require("stream");
@@ -51,7 +49,7 @@ class StreamUtils {
       throw new Error(err);
     });
 
-    transform.on("finish", () => { });
+    transform.on("finish", () => {});
 
     return transform;
   }
@@ -92,6 +90,8 @@ class StreamUtils {
 
       // ContentType
       if (options.setContentTypeHeader) {
+        // TODO: Refactor so this is entirely handled in gilbert-file
+
         vinylFile.contentType = Utils.getMimeType(vinylFile.basename);
       }
 
