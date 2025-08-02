@@ -60,6 +60,7 @@ class Gilbert {
         this.resources++;
 
         // If the file doesn't have a content type (preset only in TemplatePipeline), set it to the default
+        // TODO: Refactor so this is entirely handled in gilbert-file
         if (!file.contentType) {
           file.contentType = mime.getType(file.path);
         }

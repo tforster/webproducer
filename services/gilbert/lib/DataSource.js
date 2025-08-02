@@ -1,7 +1,4 @@
-("use strict");
-
 // System dependencies
-const Module = module.constructor;
 const { Writable } = require("stream");
 
 // Third party dependencies
@@ -51,33 +48,22 @@ class DataSource {
         break;
 
       case "filesystem":
-        // Shortcut from DataSource._getMeta() function above so we don't make a second unneccessary round trip
+        // Shortcut from DataSource._getMeta() function above so we don't make a second unnecessary round trip
         data = json;
         break;
 
       case "s3":
-        // Shortcut from DataSource._getMeta() function above so we don't make a second unneccessary round trip
+        // Shortcut from DataSource._getMeta() function above so we don't make a second unnecessary round trip
         data = json;
         break;
 
       case "get":
         throw new Error(`Data source type GET is not implemented yet.`);
-        break;
 
       case "sql":
         throw new Error(`Data source type SQL is not implemented yet.`);
-        if (!query) {
-          throw new Error("A query is required for type GraphQL");
-        }
-        break;
-
       case "mongo":
         throw new Error(`Data source type MongoDb is not implemented yet.`);
-        if (!query) {
-          throw new Error("A query is required for type GraphQL");
-        }
-        break;
-
       default:
         throw new Error(`Data source type ${type} is not supported.`);
     }
@@ -93,7 +79,7 @@ class DataSource {
     }
 
     // Final check to ensure we have data
-    if (data === {}) {
+    if (!data || (typeof data === 'object' && Object.keys(data).length === 0)) {
       throw new Error("Data not found.");
     }
 
@@ -102,7 +88,7 @@ class DataSource {
   }
 
   /**
-   * Returns any meta files associated with the data source including none, one or all of a query and tnansform function.
+   * Returns any meta files associated with the data source including none, one or all of a query and transform function.
    *
    * @static
    * @param {string} path:        The absolute, relative or S3 path to the folder containing meta files
@@ -128,7 +114,7 @@ class DataSource {
       const v = Utils.vinylise2(path);
       stream = new s3FileAdapter({ bucket: v.bucket, region }).src(`${v.path}/data/**/*.*`);
     } else {
-      throw new Error(`Meta type ${metaType} is not suported`);
+      throw new Error(`Meta type ${metaType} is not supported`);
     }
 
     // _getFilesFromStream returns a Promise
@@ -155,7 +141,7 @@ class DataSource {
         objectMode: true,
       });
 
-      // Add some metas to make it easier to branch for json, graphql, transform, etc
+      // Add some meta to make it easier to branch for json, graphql, transform, etc
       writable._write = function (file, _, done) {
         switch (file.extname) {
           case ".json":
@@ -178,6 +164,7 @@ class DataSource {
 
       // Wrap and throw any errors
       writable.on("error", (err) => {
+        // eslint-disable-next-line no-console
         console.error("data():", err);
         throw new Error(err);
       });
