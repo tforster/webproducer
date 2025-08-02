@@ -1,85 +1,263 @@
-# Developer Guide <!-- omit in toc -->
+# Gilbert Developer Guide <!-- omit in toc -->
 
-_A constantly evolving guide to developing WebProducer. It captures the current state of the architecture, includes rationales and guiding principals._
+_This document demonstrates a unified approach to documentation that serves both human developers and AI agents. It combines philosophical context for humans with specific technical patterns for AI._
 
 ## Table of Contents <!-- omit in toc -->
 
 - [About](#about)
-  - [Approach](#approach)
-  - [The Mind's DOM](#the-minds-dom)
-- [Architectural Highlights](#architectural-highlights)
-- [Developing with WebProducer](#developing-with-webproducer)
-- [Developing for WebProducer](#developing-for-webproducer)
-  - [Prerequisites](#prerequisites)
-  - [Setup and Configuration](#setup-and-configuration)
-- [Usage](#usage)
+  - [Philosophy: The Mind's DOM](#philosophy-the-minds-dom)
+  - [Performance-First Architecture](#performance-first-architecture)
+- [Core Architecture](#core-architecture)
+  - [Streams-Based Processing](#streams-based-processing)
+  - [Pipeline Architecture](#pipeline-architecture)
+  - [Virtual File System](#virtual-file-system)
+- [Development Workflows](#development-workflows)
+  - [Local Development](#local-development)
+  - [Code Style \& Formatting](#code-style--formatting)
+  - [Testing Patterns](#testing-patterns)
+  - [Debugging Streams](#debugging-streams)
+- [Migration Guide: Web Streams](#migration-guide-web-streams)
 
 ## About
 
-This Developer Guide goes beyond a typical project README to include not just the "how" but also the "why". I believe that by providing context behind architectural decisions the spirit of WebProducer can be successfully maintained and evolved.
+Gilbert is a streams-based, data-driven static site generator designed for exceptional performance. This guide provides both the philosophical context ("why") and specific implementation patterns ("how") needed for effective development.
 
-### Approach
+### Philosophy: The Mind's DOM
 
-As usual the approach follows the "lean is better" idea:
+Gilbert's template philosophy centers on the "mind's DOM" concept - developers must be able to easily visualize and mentally render templates without cognitive overhead.
 
-- **Lean tooling**: By keeping tooling to a minimum we can move with increased agility and there is less likelihood that a project can be stalled by a stuck dependency in the tool chain. It also allows us to adapt and adopt cutting edge principals without waiting for tool developers to catch up.
-- **Lean coding**:
-- **Lean dependencies**: Even with JavaScript tree shaking capabilities there is little advantage to using general purpose libraries and frameworks any more. Evergreen browsers and very capable standards have all but eliminated this need which often requires specific framework learning curves. By investing the same time and effort into a deeper understanding of the actual challenge the library was going to abstract we become better developers and stronger debuggers when things break.
+**Human Context**: Complex template logic creates mental burden. Simple token replacement allows developers to maintain clear mental models of output.
 
-Pros:
+> **AI Note**: Templates use minimal Handlebars logic only: `{{#if}}`, `{{#each}}`, and `{{variable}}` replacement. Avoid complex helpers or nested logic. If template logic becomes complex, move it to data transformation upstream.
 
-- Less time spent f**king around with giant convoluted toolsets and massive libraries created to [battle poor social network architecture](https://blog.risingstack.com/the-history-of-react-js-on-a-timeline/#:~:text=Back%20in%202011,of%20React.js.)
-- Quicker time to market
-- Faster page loads
-- Lower page weights
-- Exceptionally low running costs
-- Easier debugging
-- Greater enjoyment of the process
-- More time to focus on the fun aspect of creative problem solving
+**Benefits**:
 
-### The Mind's DOM
+- Faster debugging and development
+- Easier collaboration and handoffs
+- Predictable performance characteristics
+- Clear separation between data and presentation
 
-Being a great developer means being able to maintain complex mental models of the problem at hand. This is why most developers hate being interrupted because it takes a while to rebuild those mental models.
+### Performance-First Architecture
 
-![[THIS IS WHY YOU SHOULDN'T INTERRUPT A PROGRAMMER](https://heeris.id.au/2013/this-is-why-you-shouldnt-interrupt-a-programmer/)](https://heeris.id.au/trinkets/ProgrammerInterrupted.png)
+Gilbert targets 200+ pages per second generation with minimal memory footprint.
 
-When working on web projects I liken this to the "mind's DOM". As developers we create a DOM in our mind that renders the HTML, CSS and JS that we are working on. And like a browser DOM:
+**Human Context**: This performance enables real-time publishing workflows and serverless deployments at scale.
 
-- Our mind's DOM struggles when those resources become unduly complex
-- Out mind's DOM performs best with separation of concerns when it can process HTML, CSS and JS separately. E.g. using the JavaScript engine to render HTML is not as efficient as using the HTML engine to render HTML.
+> **AI Note**: Always benchmark changes against the 200 pages/second target. Use `console.time()` around pipeline operations. Profile memory usage with `process.memoryUsage()`. Reject changes that significantly impact performance without corresponding functionality gains.
 
-Thus we use Handlebars templates for (almost) strictly token replacement only. While Handlebars "can" support logic within the template I strongly discourage the practice. The only logic recommended in the template is simple `if/then` and `repeaters`. The resulting template files look very close to the final output and it should be trivial to read even a lengthy Handlebars HTML template and render it in your mind's DOM.
+## Core Architecture
 
-## Architectural Highlights
+### Streams-Based Processing
 
-While the architecture of WebProducer is surprisingly simple given it's power and capability it is useful to highlight several key areas including:
+Gilbert processes content through Node.js streams (migrating to Web Streams for WinterCG compatibility).
 
-- **Streams Based**: Using streams drastically improves performance and efficiency. Since streams "pass through" the various pipes the overall memory requirements are small as space does not have to be set aside to contain the entire data set. Streams also allow data to be processed from the first byte rather than waiting for all bytes to be received.
-- **Files Represented as Vinyl Objects**: [Vinyl](https://github.com/gulpjs/vinyl) is a metadata schema created by [Gulp](https://gulpjs.com/) to describe files in streams and is the underpinning of the massively successful Gulp ecosystems. While WebProducer has absolutely no dependency or requirement for Gulp it does use the same schema for describing files. This makes many of the thousands of Gulp plugins compatible with WebProducer.
-- **Separation of Concerns**: WebProducer produces HTML, CSS and JavaScript content that targets web browsers and today's web browsers have been well engineered to extract peak performance from HTML, CSS and JavaScript.
-- **Low Logic Templating**:
-Components with Handlebars
-- **ESBuild**:
-Challenge with ESBuild
+**Human Context**: Streams enable processing large datasets without loading everything into memory, critical for scalability.
 
-## Developing with WebProducer
+> **AI Note**:
+>
+> - Always use `objectMode: true` for file streams
+> - Implement Transform streams with proper error handling
+> - Use `Utils.streamsFinish()` to wait for multiple streams
+> - Current migration: Replace Node.js streams with Web Streams API for Cloudflare Workers compatibility
 
-This section applies to developers wishing to incorporate WebProducer into their production workflow and addresses scenarios for building and publishing web content.
+```javascript
+// Current pattern (Node.js streams)
+const pipeline = new Transform({
+  objectMode: true,
+  transform(file, encoding, callback) {
+    // Process file
+    callback(null, file);
+  },
+});
 
-## Developing for WebProducer
+// Target pattern (Web Streams) - use for new code
+const pipeline = new TransformStream({
+  transform(file, controller) {
+    // Process file
+    controller.enqueue(file);
+  },
+});
+```
 
-Please read this section if you are interested in advancing and contributing to WebProducer.
+### Pipeline Architecture
 
-### Prerequisites
+Gilbert uses specialized pipelines for different content types: templates, scripts, stylesheets, and static files.
 
-The versions listed for these prerequisites are current at the time of writing. More recent versions will likely work but "your mileage may vary".
+**Human Context**: Separation of concerns allows each pipeline to optimize for its specific content type and processing requirements.
 
-- **A good code editor**: Since we use [Microsoft VSCode](https://code.visualstudio.com/download) debugging support in the form of a launch.json file is available in the accompanying .vscode directory.
-- **NodeJS 17.5.0 and NPM 8.4.1**: While WebProducer has been developed and tested using the latest current version of Node care is taken to ensure it works with v14 LTS to ensure runtime compatibility with [AWS Lambda](https://docs.aws.amazon.com/lambda/latest/dg/lambda-runtimes.html). Unfortunately this means that no >14 Node capabilities can be incorporated into WebProducer until AWS updates its runtime. [NVM](https://github.com/nvm-sh/nvm) is recommended to install and manage Node versions.
-- Git 2.34.1
+> **AI Note**: All pipelines follow this interface:
+>
+> - Constructor: `(options, ...inputStreams)`
+> - `async prep()`: Load and parse dependencies
+> - `async build()`: Process and emit to `this.stream`
+> - Property: `this.stream` - Readable stream output
+>
+> **Critical Exception - Template Loading**: Unlike other pipelines, TemplatePipeline must load ALL templates into memory during `prep()` before data processing begins. This is because any data URI can reference any template in any order.
 
-### Setup and Configuration
+**Pipeline Responsibilities**:
 
-Clone this repository as your new project `git clone git@github.com:tforster/webproducer.git ~/dev/`
+- `TemplatePipeline`: Handlebars + data merging, HTML minification _(requires full template pre-loading)_
+- `ScriptsPipeline`: esbuild bundling, ES module processing
+- `StylesheetsPipeline`: PostCSS, autoprefixing, minification
+- `StaticFilesPipeline`: Asset copying with mime type detection
 
-## Usage
+```javascript
+// Template Pipeline Exception Pattern
+async prep() {
+  const templates = {};
+  // MUST load all templates before data processing
+  this.themeStream.on('data', (file) => {
+    templates[file.relative] = handlebars.compile(file.contents.toString());
+  });
+  await streamFinished(this.themeStream);
+  this.templates = templates; // Now safe to process data
+}
+```
+
+### Virtual File System
+
+Gilbert uses GilbertFile objects (custom Vinyl implementation) instead of filesystem operations.
+
+**Human Context**: Virtual files enable in-memory processing and easy testing without filesystem dependencies.
+
+> **AI Note**:
+>
+> - Always use `Utils.vinyl(options)` factory, never direct GilbertFile constructor
+> - Set `options.cwd = "/"` for consistent virtual filesystem behavior
+> - Use `path.resolve()` for all path operations
+> - File contents should be Buffer objects for binary compatibility
+
+```javascript
+// Correct file creation
+import { vinyl } from "./Utils.js";
+const file = vinyl({
+  path: "/index.html",
+  contents: Buffer.from(htmlContent),
+  cwd: "/",
+});
+
+// Access patterns
+console.log(file.relative); // "index.html"
+console.log(file.dirname); // "/"
+console.log(file.extname); // ".html"
+```
+
+## Development Workflows
+
+### Local Development
+
+**Human Context**: Gilbert is designed for rapid iteration during development with selective pipeline execution.
+
+> **AI Note**: Development commands and patterns:
+>
+> ```bash
+> # Full build
+> npx gilbert
+>
+> # Skip pipelines for faster iteration
+> npx gilbert --no-scripts --no-css  # Only templates + static files
+> npx gilbert --no-files             # Skip asset copying
+> ```
+
+**Workspace Setup**:
+
+```bash
+# Install dependencies (uses implicit npm workspace linking)
+npm install
+
+# Run from example project
+cd examples/getting-started
+npx gilbert
+```
+
+### Code Style & Formatting
+
+**Human Context**: This project uses ESLint and Prettier for automated code formatting and style enforcement with format-on-save enabled in VSCode.
+
+> **AI Note**: Follow the project's established code style:
+>
+> - **Config files**: `eslint.config.js` (project root) + Prettier integration
+> - **Module system**: ES modules (`import`/`export`, `type: "module"`)
+> - **Quotes**: Double quotes (`"string"`)
+> - **Line length**: Max 132 characters
+> - **Variables**: Use `const` by default, `let` when reassignment needed
+> - **Arrow functions**: Use concise body when possible (`() => value`)
+> - **Console**: Use `console.log()` sparingly (ESLint warns)
+> - **Async/await**: Preferred over promise chains
+> - **Private fields**: Use `#privateField` syntax for class privates
+>
+> **Generated code will be auto-formatted** by VSCode on save via Prettier, so focus on logic correctness over spacing/formatting details.
+
+### Testing Patterns
+
+**Human Context**: Gilbert uses Node.js built-in test runner for fast, dependency-free testing.
+
+> **AI Note**: Testing conventions:
+>
+> - Test files: `**/*.test.js` pattern
+> - Use `node:test` module: `import { test, describe, it } from "node:test"`
+> - Test GilbertFile objects with mock data, not filesystem
+> - Use `assert.strictEqual()` for exact matches
+> - Stream testing: Create mock Transform streams for pipeline testing
+
+```javascript
+// Example test pattern
+import { test, describe } from "node:test";
+import assert from "node:assert/strict";
+import { vinyl } from "../lib/Utils.js";
+
+describe("Pipeline", () => {
+  test("should process file correctly", async () => {
+    const input = vinyl({ path: "/test.txt", contents: Buffer.from("test") });
+    const result = await pipeline.process(input);
+    assert.strictEqual(result.contents.toString(), "processed test");
+  });
+});
+```
+
+### Debugging Streams
+
+**Human Context**: Stream debugging requires understanding event flow and timing.
+
+> **AI Note**: Debugging utilities and patterns:
+>
+> - Use `Utils.streamLog(stream)` for event monitoring
+> - Log stream states: `data`, `end`, `finish`, `error` events
+> - Check file paths with `console.log(file.path, file.relative)`
+> - Verify content types with `console.log(file.contentType)`
+> - Memory debugging: `console.log(process.memoryUsage())`
+
+## Migration Guide: Web Streams
+
+**Human Context**: Migrating to Web Streams enables deployment to Cloudflare Workers and other WinterCG-compatible runtimes.
+
+> **AI Note**: Migration checklist for new code:
+>
+> - Replace `require('stream').Transform` with `TransformStream`
+> - Replace `require('stream').Readable` with `ReadableStream`
+> - Update stream patterns:
+>
+>   ```javascript
+>   // Old: Node.js streams
+>   stream.on("data", handler);
+>   stream.pipe(destination);
+>
+>   // New: Web Streams
+>   const reader = stream.getReader();
+>   stream.pipeTo(destination);
+>   ```
+>
+> - Test in multiple runtimes: Node.js, Bun, Cloudflare Workers
+> - Maintain backward compatibility during transition
+
+**Target Deployment**: Cloudflare Workers triggered by CMS webhooks for real-time publishing.
+
+---
+
+> **AI Development Note**: This template demonstrates unified documentation patterns. When updating this guide:
+>
+> 1. Maintain both human context (philosophy, benefits) and AI specifics (code patterns, interfaces)
+> 2. Use `> **AI Note**:` callouts for implementation details
+> 3. Include working code examples that AI agents can reference
+> 4. Keep performance considerations visible throughout
+> 5. Update migration guidance as Web Streams transition progresses
